@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Letreros 3D · Estudio de diseño</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;color:#ebf2fe;background:#09111e;font-synthesis:none}*{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 70% 0%,#1a2d4c 0%,#09111e 55%)}header{height:74px;padding:0 max(24px,calc((100vw - 1200px)/2));display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #253248;background:#0b1524c9}.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:18px}.logo{padding:8px 11px;background:#348dff;border-radius:12px;color:white}.tag{font-size:12px;padding:7px 12px;border:1px solid #35445e;border-radius:20px;color:#b9c8dc}main{max-width:1200px;margin:35px auto;padding:0 24px}.intro{margin-bottom:24px}.intro h1{font-size:clamp(26px,4vw,38px);letter-spacing:-1px;margin:0 0 10px}.intro p{color:#9caec8;margin:0}.layout{display:grid;grid-template-columns:minmax(285px,350px) minmax(0,1fr);gap:20px}.panel,.preview{background:#101d30;border:1px solid #283751;border-radius:18px;box-shadow:0 15px 50px #0002}.panel{padding:24px}.panel h2{font-size:16px;margin:0 0 23px}label{font-weight:600;font-size:13px;color:#bdcbe0;display:block;margin:18px 0 8px}input,select{width:100%;background:#0c1728;border:1px solid #32425d;color:#ecf3ff;border-radius:10px;padding:12px;font:inherit;font-size:15px}input:focus,select:focus{outline:2px solid #438fff;outline-offset:1px}.twocol{display:grid;grid-template-columns:1fr 1fr;gap:12px}.hint{font-size:12px;color:#8fa2bd;margin-top:16px;line-height:1.6}.preview{min-height:485px;display:flex;flex-direction:column;overflow:hidden}.preview-head{display:flex;justify-content:space-between;align-items:center;padding:21px 24px;border-bottom:1px solid #283751}.preview-head h2{margin:0;font-size:16px}.preview-head span{font-size:12px;color:#94a8c4}.stage{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;padding:30px;background:linear-gradient(155deg,#122642,#0b1526)}.stage:before{content:'';position:absolute;inset:0;background-image:linear-gradient(#ffffff0c 1px,transparent 1px),linear-gradient(90deg,#ffffff0c 1px,transparent 1px);background-size:30px 30px;mask-image:linear-gradient(#0008,transparent)}.letter{position:relative;max-width:100%;font-weight:900;font-family:Arial,sans-serif;letter-spacing:1px;font-size:clamp(30px,5.2vw,68px);text-align:center;overflow-wrap:anywhere;filter:drop-shadow(18px 20px 6px #0006);color:#f7fbff;text-shadow:1px 1px #98aec5,3px 3px #627d99,5px 5px #3e5e80,8px 8px #284565,12px 12px #203c57;transform:perspective(700px) rotateY(-7deg) rotateX(5deg)}.stage.neon .letter{color:#ffd2e2;text-shadow:0 0 5px #ff72ac,0 0 12px #ff4a98,0 0 25px #fc347f,6px 9px #591f42}.stage.halo .letter{color:#203044;text-shadow:0 0 8px #a7ceff,0 0 22px #77a9ff,0 0 40px #75b5ff,7px 10px #172b42}.bottom{padding:18px 24px;display:flex;gap:12px;flex-wrap:wrap;border-top:1px solid #283751}.pill{border:1px solid #3a4d67;border-radius:9px;padding:9px 12px;color:#c4d2e5;font-size:12px}.notice{padding:16px 18px;border:1px solid #33455e;border-radius:12px;color:#abc0d9;font-size:13px;margin-top:20px;line-height:1.5}.footer{color:#758eac;font-size:12px;margin-top:22px}@media(max-width:800px){.layout{grid-template-columns:1fr}.preview{min-height:360px}}
+</style>
+</head>
+<body>
+<header><div class="brand"><span class="logo">L3D</span> Letreros 3D Studio</div><span class="tag">Prototipo 0.1</span></header>
+<main>
+<section class="intro"><h1>Diseña tu próximo letrero</h1><p>Primer prototipo del editor en español. Ajusta el texto y explora su apariencia antes de crear el motor CAD.</p></section>
+<section class="layout">
+<form class="panel" onsubmit="return false"><h2>Configuración del diseño</h2>
+<label for="text">Texto del letrero</label><input id="text" value="LUCY HAIRSTYLE" maxlength="36" autocomplete="off">
+<label for="style">Tipo de iluminación</label><select id="style"><option value="frontal">Corpórea frontal</option><option value="neon">Neón flexible (simulación)</option><option value="halo">Retroiluminada (simulación)</option></select>
+<div class="twocol"><div><label for="height">Altura (mm)</label><input id="height" type="number" min="30" max="1000" value="120"></div><div><label for="depth">Profundidad (mm)</label><input id="depth" type="number" min="10" max="200" value="35"></div></div>
+<label for="material">Material previsto</label><select id="material"><option>PETG</option><option>ASA</option><option>PLA (interior)</option></select>
+<div class="hint">Próximas fases: SVG, geometría sólida, cuerpo hueco, tapas, tolerancias, exportación STL y perfiles de impresora.</div>
+</form>
+<section class="preview"><div class="preview-head"><h2>Vista preliminar</h2><span>Representación visual · No es CAD</span></div><div class="stage" id="stage"><div class="letter" id="letter">LUCY HAIRSTYLE</div></div><div class="bottom"><span class="pill" id="d-height">Alto: 120 mm</span><span class="pill" id="d-depth">Profundidad: 35 mm</span><span class="pill" id="d-material">Material: PETG</span></div></section>
+</section>
+<div class="notice"><strong>Importante:</strong> esta primera versión es una demostración visual desplegable. No genera todavía modelos STL ni calcula piezas físicas. No la utilices para fabricar hasta completar y probar el motor de geometría.</div>
+<p class="footer">Proyecto privado de desarrollo propio · Fase 1: interfaz · Compatible con despliegue Docker / Coolify</p>
+</main>
+<script>
+const el=id=>document.getElementById(id),txt=el('text'),style=el('style'),height=el('height'),depth=el('depth'),material=el('material');
+function update(){el('letter').textContent=txt.value.trim()||'TU LETRERO';el('stage').className='stage '+style.value;el('d-height').textContent='Alto: '+height.value+' mm';el('d-depth').textContent='Profundidad: '+depth.value+' mm';el('d-material').textContent='Material: '+material.value;}
+for(const input of [txt,style,height,depth,material])input.addEventListener('input',update);update();
+</script></body></html>
