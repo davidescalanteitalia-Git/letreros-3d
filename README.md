@@ -2,31 +2,39 @@
 
 Aplicación propia para diseño y futura fabricación de letreros corpóreos impresos en 3D.
 
-## Estado actual
-**Editor web v0.3 (`index.html`):** prototipo visual en español con texto, 10 fuentes, tipos de letrero simulados, medidas, guardar/abrir JSON. La web **no genera STL**.
+## Estado actual (v0.4)
+**Web + motor en un solo contenedor.** `letreros.d4digitalstudio.it` sirve el editor (`index.html`) y la API del motor (`servidor/app.py`, FastAPI):
+- Diseñar: texto, fuente, medidas, estructura; guardar/abrir proyecto JSON; boceto SVG.
+- **Fabricar STL**: comprobar el diseño (medidas reales, peso PETG, metros de LED, avisos por letra), **visor 3D de la geometría real** (vista explotada, corte, luz encendida), descargar todas las piezas en ZIP (STL por pieza + `LEEME.txt` con montaje + `ficha.json`) y la probeta de holguras.
+- Fabricable hoy: Montserrat Bold en frontal (frente a presión), halo (separadores), caja y maciza. Neón, doble luz, frente opaco, otras fuentes y división de letras grandes: próximas versiones.
 
-**Motor de geometría M1 (`motor/`):** prototipo local en Python que genera el STL auténtico y validado de UNA letra maciza (Montserrat Bold, OFL). Sin caja hueca, LED ni división. Ver `motor/README.md` y `docs/05_INFORME_AUDITORIA.md`.
+El motor también se usa sin web desde PowerShell: ver `motor/README.md`.
 
-## Abrir localmente
-Abre `index.html` en tu navegador para ver la demostración.
+## Usar en local
+```powershell
+cd motor; python -m venv .venv; .venv\Scripts\activate; cd ..
+pip install -r motor/requirements.txt -r servidor/requirements.txt
+$env:PYTHONPATH="motor"; uvicorn servidor.app:app --port 8000
+```
+Abre http://localhost:8000. Pruebas: `python -m pytest -q motor/tests servidor/tests`.
 
-## Desplegar con Coolify
-1. En Coolify: Projects → New Project → New Resource → Application.
-2. Selecciona GitHub (con permisos al repositorio) o Public Repository si continúa público.
-3. Repositorio: `davidescalanteitalia-Git/letreros-3d`; rama `main`.
-4. Build pack: **Dockerfile**; Dockerfile path: `/Dockerfile`; puerto interno: `80`.
-5. Desplegar y probar la URL temporal de Coolify.
-6. En Cloudflare → DNS, crear un registro A para el subdominio deseado apuntando a la IP pública del servidor; empezar con DNS-only para comprobar HTTPS y enrutamiento.
-7. En Coolify → Domains, establecer el dominio HTTPS y verificar certificado y respuesta antes de activar proxy de Cloudflare.
-8. Añadir autenticación/restricción de acceso antes de cargar información privada. Nunca subir contraseñas ni tokens al repositorio.
+## Producción (Coolify)
+La configuración de Coolify **no cambia**: build pack Dockerfile, `/Dockerfile`, rama `main`, puerto interno **80**. El nuevo `Dockerfile` (Python 3.13 slim, usuario sin privilegios, healthcheck contra `/api/salud`) sustituye al nginx anterior. Tras fusionar en `main`, pulsar **Redeploy** si el despliegue automático no está activo.
 
-**Precaución:** el sitio no incorpora login y será público si se publica con dominio accesible. Para un sitio estrictamente privado, proteger el acceso primero con Cloudflare Access u otra autenticación.
+Variables de entorno opcionales (Coolify → Environment Variables):
+| Variable | Def. | Uso |
+|---|---|---|
+| `LETREROS_CLAVE` | vacío | Si se define, la API pide esta clave (la web la solicita una vez por sesión). Recomendado mientras el sitio sea público. |
+| `LETREROS_CONCURRENCIA` | 2 | Trabajos de geometría simultáneos. |
+| `LETREROS_PETICIONES_MIN` | 30 | Peticiones de generación por IP y minuto. |
+
+Seguridad incluida: cabeceras CSP/nosniff/frame-deny, límite de tamaño de petición (20 kB) y de tiempo (90 s), límite por IP, sin documentación de API pública, three.js servido localmente (sin CDN). Para que solo tú accedas, la opción más sólida sigue siendo Cloudflare Access delante del dominio.
 
 ## Arquitectura futura
 React + TypeScript + Three.js en frontend; FastAPI + motor CAD para export STL, bajo pruebas de medidas y validación de malla. Véase `docs/02_ESPECIFICACION_PROFESIONAL.md`.
 
 ## Pendiente
-- Confirmar modelo exacto de impresora y volumen útil.
-- Construir motor CAD y validar STL.
-- Probar impresión y encajes.
-- Configurar despliegue seguro.
+- Imprimir la probeta de holguras en PETG y fijar el valor por defecto real.
+- Verificar en Bambu Studio y en pieza física las estructuras frontal y halo.
+- División de letras más grandes que la cama (colas de milano), más fuentes con licencia, kerning y varias líneas.
+- Acrílico + DXF, neón flex y doble luz.

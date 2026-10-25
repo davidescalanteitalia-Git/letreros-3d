@@ -1,10 +1,10 @@
-name: Pruebas del motor STL
+name: Pruebas del motor y de la web
 on:
   pull_request:
-    paths: ["motor/**", ".github/workflows/pruebas-motor.yml"]
+    paths: ["motor/**", "servidor/**", "index.html", "Dockerfile", ".dockerignore", ".github/workflows/pruebas-motor.yml"]
   push:
     branches: [main]
-    paths: ["motor/**"]
+    paths: ["motor/**", "servidor/**", "index.html", "Dockerfile"]
 
 permissions:
   contents: read
@@ -23,9 +23,40 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
-      - name: STL de muestra
-        run: python -m letreros_motor A --altura 120 --profundidad 35 -o salida/A.stl
+      - name: Muestras (letra M1, letrero frontal y probeta)
+        run: |
+          python -m letreros_motor A --altura 120 --profundidad 35 -o salida/A.stl
+          python -m letreros_motor letrero "LUCY" --estructura frontal -o salida/LUCY
+          python -m letreros_motor probeta -o salida/probeta
       - uses: actions/upload-artifact@v4
         with:
-          name: stl-muestra
-          path: motor/salida/A.stl
+          name: stl-muestras
+          path: motor/salida/
+
+  servidor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r motor/requirements.txt -r servidor/requirements.txt
+      - run: python -m pytest -q servidor/tests
+
+  imagen:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir la imagen de producción
+        run: docker build -t letreros-3d:ci .
+      - name: Arrancar y comprobar salud, portada y generación
+        run: |
+          docker run -d --name l3d -p 8080:80 letreros-3d:ci
+          for i in $(seq 1 30); do curl -fs localhost:8080/api/salud && break; sleep 2; done
+          curl -fsI localhost:8080/ | head -1
+          curl -fs -o lucy.zip -X POST localhost:8080/api/letrero -H 'Content-Type: application/json' \
+            -d '{"schema_version":1,"letters":"LUCY","font":"Montserrat","height":"120","depth":"40","wall":"1.6","clearance":".25","style":"front","bedx":"320","bedy":"310"}'
+          unzip -l lucy.zip | tail -1
+          test "$(docker inspect --format '{{.State.Health.Status}}' l3d)" != "unhealthy"
