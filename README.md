@@ -5,7 +5,7 @@ Aplicación propia para diseño y futura fabricación de letreros corpóreos imp
 ## Estado actual
 **Editor web v0.3 (`index.html`):** prototipo visual en español con texto, 10 fuentes, tipos de letrero simulados, medidas, guardar/abrir JSON. La web **no genera STL**.
 
-**Motor de geometría M1 (`motor/`):** prototipo local en Python que genera el STL auténtico y validado de UNA letra maciza (Montserrat Bold, OFL). Sin caja hueca, LED ni división. Ver `motor/README.md` y `docs/05_INFORME_AUDITORIA.md`.
+**Motor de geometría M2 (`motor/`):** herramienta local en Python que genera todas las piezas de un letrero (una línea de texto, altura de mayúscula en mm) en 4 estructuras: maciza, caja, frontal iluminada con frente a presión y halo con separadores. Comprueba sólidos cerrados, cama A2L, tira LED y trazos; exporta STL por pieza + ficha + mapa de montaje, y genera la probeta de holguras. Sin acrílico/DXF ni división todavía. Ver `motor/README.md`.
 
 ## Abrir localmente
 Abre `index.html` en tu navegador para ver la demostración.

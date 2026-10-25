@@ -1,6 +1,19 @@
-"""Motor de geometría de Letreros 3D Studio (prototipo M1: una letra maciza → STL)."""
-from .errores import ErrorEntrada, ErrorGeometria
-from .generador import Informe, Parametros, exportar_stl, generar_letra
+"""Motor de geometría de Letreros 3D Studio.
 
-__version__ = "0.1.0"
-__all__ = ["ErrorEntrada", "ErrorGeometria", "Informe", "Parametros", "exportar_stl", "generar_letra"]
+M1: una letra maciza → STL (`generar_letra`, se conserva).
+M2: letreros completos con estructuras huecas para LED (`Diseno`, `generar_letrero`, `exportar`)
+    y probeta de holguras (`generar_probeta`).
+"""
+__version__ = "0.2.0"
+
+from .diseno import ESTRUCTURAS, Diseno, validar  # noqa: E402
+from .errores import ErrorEntrada, ErrorGeometria  # noqa: E402
+from .generador import Informe, Parametros, exportar_stl, generar_letra  # noqa: E402
+from .probeta import generar_probeta  # noqa: E402
+from .proyecto import Proyecto, exportar, generar_letrero  # noqa: E402
+
+__all__ = [
+    "ESTRUCTURAS", "Diseno", "validar", "ErrorEntrada", "ErrorGeometria",
+    "Informe", "Parametros", "exportar_stl", "generar_letra",
+    "generar_probeta", "Proyecto", "exportar", "generar_letrero",
+]

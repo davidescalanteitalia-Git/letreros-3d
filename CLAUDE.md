@@ -10,7 +10,8 @@ Letreros 3D Studio, software independiente de rotulación y producción FDM. Usu
 - `config/PERFIL_A2L_PETG.md`: Bambu Lab A2L, boquilla 0.4 mm, PETG; medidas nominales 330×320×325 mm; corroborar antes de generar.
 - `.github/workflows/verificar-coolify.yml`: prueba manual de conexión API solo lectura, con secreto COOLIFY_API_TOKEN; no despliega.
 - Se observó despliegue de la v0.1 healthy en Coolify y una captura del sitio online; no afirmar que la v0.3 esté en producción sin comprobar versión publicada.
-- No existe aún backend, motor CAD, STL, 3MF, DXF listo para cortar, separación real, base de datos ni autenticación.
+- `motor/` (M2, 2026-10-25): motor Python local (fontTools + shapely + manifold3d + trimesh). Texto de una línea con altura de mayúscula; estructuras maciza/caja/frontal (frente a presión)/halo (separadores); validaciones; probeta de holguras; STL por pieza + ficha.json + LEEME. 125 pruebas pytest + CI. M1 STL verificado abriendo en Bambu Studio (A 120×35 y 40×5).
+- No existe aún backend/API, editor 3D real, 3MF, DXF de acrílico, división por cama, base de datos ni autenticación. La web publicada no usa el motor.
 
 ## Trabajo esperado
 1. Inspeccionar árbol, código y commits antes de cambiar nada; correr tests cuando existan.

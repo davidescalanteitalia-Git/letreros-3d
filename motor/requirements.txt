@@ -2,6 +2,7 @@
 fonttools==4.66.1
 shapely==2.2.0
 trimesh==5.2.0
+manifold3d==3.5.4  # uniones y restas 3D que siempre dan sólidos cerrados
 numpy==2.5.3
 scipy==1.18.1  # trimesh lo usa para contar cuerpos y reparar normales
 mapbox-earcut==2.1.0

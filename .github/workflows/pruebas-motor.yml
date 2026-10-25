@@ -23,9 +23,12 @@ jobs:
           python-version: "3.13"
       - run: pip install -r requirements.txt
       - run: python -m pytest -q
-      - name: STL de muestra
-        run: python -m letreros_motor A --altura 120 --profundidad 35 -o salida/A.stl
+      - name: Muestras (letra M1, letrero frontal y probeta)
+        run: |
+          python -m letreros_motor A --altura 120 --profundidad 35 -o salida/A.stl
+          python -m letreros_motor letrero "LUCY" --estructura frontal -o salida/LUCY
+          python -m letreros_motor probeta -o salida/probeta
       - uses: actions/upload-artifact@v4
         with:
-          name: stl-muestra
-          path: motor/salida/A.stl
+          name: stl-muestras
+          path: motor/salida/

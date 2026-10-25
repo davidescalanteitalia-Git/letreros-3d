@@ -6,6 +6,7 @@ rectos cuya desviación máxima respecto a la curva es `tolerancia_mm`.
 from __future__ import annotations
 
 import math
+from functools import lru_cache
 
 from fontTools.pens.basePen import BasePen
 from fontTools.ttLib import TTFont
@@ -106,13 +107,25 @@ def contorno_letra(ruta_fuente, letra: str, altura_mm: float, tolerancia_mm: flo
         raise ErrorEntrada(f"El carácter '{letra}' no tiene altura.")
     escala = altura_mm / alto_unidades
 
-    # Segunda pasada: una cuerda c sobre un arco de radio R se separa de él
-    # c²/(8R). Con R de referencia = 5 mm, c = sqrt(8·tolerancia·R) mantiene la
-    # desviación ≤ tolerancia en curvas de radio ≥ 5 mm (las más cerradas de un rótulo).
-    paso_mm = max(0.3, math.sqrt(8 * tolerancia_mm * 5.0))
-    pluma = _PlumaPoligonos(glyphset, paso_unidades=paso_mm / escala)
-    glyphset[nombre].draw(pluma)
+    forma = _forma_glifo(glyphset, nombre, escala, tolerancia_mm)
+    minx, miny, _, _ = forma.bounds
+    forma = affinity.translate(forma, xoff=-minx, yoff=-miny)
+    return _a_multipoligono(forma, letra)
 
+
+def _paso_mm(tolerancia_mm: float) -> float:
+    # Una cuerda c sobre un arco de radio R se separa de él c²/(8R). Con R de
+    # referencia = 5 mm, c = sqrt(8·tolerancia·R) mantiene la desviación
+    # ≤ tolerancia en curvas de radio ≥ 5 mm (las más cerradas de un rótulo).
+    return max(0.3, math.sqrt(8 * tolerancia_mm * 5.0))
+
+
+def _forma_glifo(glyphset, nombre: str, escala: float, tolerancia_mm: float):
+    """Silueta del glifo en mm, en coordenadas de la fuente (línea base en y=0)."""
+    pluma = _PlumaPoligonos(glyphset, paso_unidades=_paso_mm(tolerancia_mm) / escala)
+    glyphset[nombre].draw(pluma)
+    if not pluma.anillos:
+        return Polygon()
     # TrueType rellena por regla de devanado distinto de cero; los contornos
     # exteriores van en sentido horario (área firmada negativa). Procesar de
     # mayor a menor área: exterior suma, agujero resta, isla interior vuelve a sumar.
@@ -125,13 +138,47 @@ def contorno_letra(ruta_fuente, letra: str, altura_mm: float, tolerancia_mm: flo
             forma = unary_union([forma, poligono])
         else:
             forma = forma.difference(poligono)
-
     forma = affinity.scale(forma, xfact=escala, yfact=escala, origin=(0, 0))
-    minx, miny, _, _ = forma.bounds
-    forma = affinity.translate(forma, xoff=-minx, yoff=-miny)
-    forma = make_valid(forma)
+    return make_valid(forma)
 
+
+def _a_multipoligono(forma, letra: str) -> MultiPolygon:
     poligonos = [g for g in getattr(forma, "geoms", [forma]) if isinstance(g, Polygon) and g.area > 1e-6]
     if not poligonos:
         raise ErrorGeometria(f"No se obtuvo superficie válida para '{letra}'.")
     return MultiPolygon([orient(p) for p in poligonos])
+
+
+@lru_cache(maxsize=8)
+def _cargar(ruta: str) -> TTFont:
+    return TTFont(ruta)
+
+
+def altura_mayuscula_unidades(ruta_fuente) -> float:
+    """Altura de la mayúscula (A, H, M) en unidades de la fuente."""
+    fuente = _cargar(str(ruta_fuente))
+    cap = getattr(fuente["OS/2"], "sCapHeight", 0) or 0
+    if cap <= 0:  # fuentes antiguas sin sCapHeight: medir la H
+        glyphset = fuente.getGlyphSet()
+        pluma = _PlumaPoligonos(glyphset, paso_unidades=1e9)
+        glyphset[fuente.getBestCmap()[ord("H")]].draw(pluma)
+        cap = max(p[1] for a in pluma.anillos for p in a)
+    return float(cap)
+
+
+def glifo_mm(ruta_fuente, caracter: str, escala: float, tolerancia_mm: float = 0.05):
+    """(silueta en mm con línea base en y=0, avance horizontal en mm).
+
+    La silueta puede estar vacía (espacio). No se desplaza: x=0 es el origen
+    del glifo, así se respetan los márgenes laterales de la fuente.
+    """
+    fuente = _cargar(str(ruta_fuente))
+    cmap = fuente.getBestCmap()
+    if ord(caracter) not in cmap:
+        raise ErrorEntrada(f"La fuente no contiene el carácter '{caracter}'.")
+    nombre = cmap[ord(caracter)]
+    avance = fuente["hmtx"][nombre][0] * escala
+    forma = _forma_glifo(fuente.getGlyphSet(), nombre, escala, tolerancia_mm)
+    if forma.is_empty:
+        return MultiPolygon(), avance
+    return _a_multipoligono(forma, caracter), avance
