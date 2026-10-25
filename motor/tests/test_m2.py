@@ -162,8 +162,14 @@ def test_aviso_pared_no_multiplo_de_boquilla():
 
 
 def test_letra_que_no_cabe_en_la_cama():
+    # Más ancha que la cama: se divide sola.
+    pr = piezas_de("W", altura=300)
+    assert any("dividida" in a for a in pr.avisos)
+    # Sin división permitida, o más alta que la cama: error claro.
     with pytest.raises(ErrorEntrada, match="no cabe"):
-        piezas_de("W", altura=300)
+        piezas_de("W", altura=300, dividir=False)
+    with pytest.raises(ErrorEntrada, match="alto"):
+        piezas_de("I", altura=400)
 
 
 def test_letra_que_solo_cabe_girada():

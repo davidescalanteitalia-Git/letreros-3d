@@ -23,14 +23,19 @@ ESTILO_A_ESTRUCTURA = {
 NOMBRES_ESTILO = {
     "neon": "Neón flex", "dual": "Doble iluminación", "frontsolid": "Frente opaco con cuerpo iluminado",
 }
-# Fuentes del editor con contornos verificados para fabricar.
-FUENTES_WEB = {"Montserrat": "montserrat-bold"}
+# Fuentes del editor con contornos verificados para fabricar (las 10 del selector).
+from .fuentes import POR_FAMILIA_WEB as FUENTES_WEB  # noqa: E402
+
+# layout de index.html → conjunto del motor
+LAYOUT_A_CONJUNTO = {"individual": "individual", "connected": "unidas", "base": "placa"}
 
 # Campos numéricos opcionales que la pestaña Fabricar añade (nombre web → campo Diseno)
 CAMPOS_EXTRA = {
     "frente": "frente", "fondo": "fondo", "encaje": "encaje", "pared_encaje": "pared_encaje",
     "espaciado": "espaciado", "comp_xy": "comp_xy", "tira_led": "tira_led", "w_por_metro": "w_por_metro",
     "cable": "cable", "separacion": "separacion", "tornillo": "tornillo",
+    "puente": "puente", "barra": "barra", "placa_margen": "placa_margen", "placa_grosor": "placa_grosor",
+    "placa_agujero": "placa_agujero", "precio_kg": "precio_kg", "precio_led_m": "precio_led_m",
 }
 LIMITE_TEXTO_CAMPO = 100
 
@@ -72,8 +77,7 @@ def diseno_desde_web(datos: dict) -> Diseno:
     fuente_web = _texto(datos, "font", "Montserrat")
     if fuente_web not in FUENTES_WEB:
         raise ErrorEntrada(
-            f"La fuente «{fuente_web}» solo está disponible en la vista previa. "
-            "Para fabricar usa Montserrat (contornos verificados)."
+            f"La fuente «{fuente_web}» no está entre las fuentes fabricables: {', '.join(FUENTES_WEB)}."
         )
 
     kwargs: dict = {}
@@ -86,6 +90,15 @@ def diseno_desde_web(datos: dict) -> Diseno:
         v = _numero(datos, clave, campo)
         if v is not None:
             kwargs[campo] = v
+    layout = _texto(datos, "layout", "individual")
+    if layout not in LAYOUT_A_CONJUNTO:
+        raise ErrorEntrada(f"Construcción del conjunto '{layout}' desconocida.")
+    kwargs["conjunto"] = LAYOUT_A_CONJUNTO[layout]
+    forma_placa = _texto(datos, "placa_forma", "rect")
+    if forma_placa:
+        kwargs["placa_forma"] = forma_placa
+    if datos.get("dividir") is not None:
+        kwargs["dividir"] = datos.get("dividir") in (True, "true", "1", "on", 1)
     drenaje = datos.get("drenaje")
     if drenaje is not None:
         kwargs["drenaje"] = drenaje in (True, "true", "1", "on", 1)

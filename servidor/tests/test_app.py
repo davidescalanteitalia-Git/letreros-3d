@@ -33,7 +33,7 @@ def test_salud_y_opciones(cliente):
     assert cliente.get("/api/salud").json()["ok"] is True
     o = cliente.get("/api/opciones").json()
     assert set(o["estilos_fabricables"]) == {"front", "halo", "box", "solid"}
-    assert o["fuentes_fabricables"] == ["Montserrat"]
+    assert len(o["fuentes_fabricables"]) == 10 and "Pacifico" in o["fuentes_fabricables"]
     assert o["protegido"] is False
 
 
@@ -75,12 +75,12 @@ def test_probeta(cliente):
 
 @pytest.mark.parametrize("cambio, texto", [
     ({"style": "neon"}, "aún no se fabrica"),
-    ({"font": "Lobster"}, "solo está disponible en la vista previa"),
+    ({"font": "Comic Sans"}, "no está entre las fuentes fabricables"),
     ({"height": "5000"}, "Altura"),
     ({"wall": "abc"}, "no es un número"),
     ({"letters": ""}, "vacío"),
     ({"schema_version": 2}, "versión"),
-    ({"letters": "WWWW", "height": "400"}, "no cabe"),
+    ({"letters": "WWWW", "height": "400"}, "alto"),
 ])
 def test_errores_claros(cliente, cambio, texto):
     r = cliente.post("/api/comprobar", json={**PROYECTO, **cambio})
@@ -134,3 +134,14 @@ def test_vendor_three(cliente):
     r = cliente.get("/vendor/three.module.min.js")
     assert r.status_code == 200 and len(r.content) > 500_000
     assert cliente.get("/vendor/OrbitControls.js").status_code == 200
+
+
+def test_v05_unidas_placa_y_division(cliente):
+    unidas = cliente.post("/api/comprobar", json={**PROYECTO, "letters": "aperto", "font": "Pacifico",
+                                                  "layout": "connected", "height": "60"}).json()
+    assert [p["archivo"] for p in unidas["piezas"]] == ["01-aperto-cuerpo.stl", "01-aperto-frente.stl"]
+    placa = cliente.post("/api/comprobar", json={**PROYECTO, "letters": "LU", "layout": "base", "height": "60"}).json()
+    assert any(p["rol"] == "placa" for p in placa["piezas"]) and placa["costes"]["total_eur"] > 0
+    m = cliente.post("/api/modelo", json={**PROYECTO, "letters": "W", "height": "250"}).json()
+    roles = {(p["parte"], p["rol"]) for p in m["piezas"]}
+    assert ("AB", "empalme") in roles and ("A", "cuerpo") in roles and ("B", "frente") in roles

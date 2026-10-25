@@ -45,6 +45,16 @@ class Diseno:
     drenaje: bool = False          # agujero Ø3 en la parte baja del fondo (exterior)
     separacion: float = 20.0       # halo: distancia del letrero a la pared
     tornillo: float = 3.2          # halo: Ø del agujero del separador
+    conjunto: str = "individual"   # individual | unidas | placa
+    puente: float = 0.0            # unidas: cierra huecos entre letras de hasta este ancho
+    barra: float = 0.0             # unidas: barra inferior de esta altura (0 = sin barra)
+    placa_forma: str = "rect"      # placa: rect | silueta
+    placa_margen: float = 15.0     # placa: margen alrededor de las letras
+    placa_grosor: float = 4.0      # placa: grosor
+    placa_agujero: float = 5.0     # placa: Ø agujeros de fijación (0 = sin agujeros)
+    dividir: bool = True           # dividir automáticamente lo que no cabe en la cama
+    precio_kg: float = 25.0        # €/kg de filamento (presupuesto)
+    precio_led_m: float = 0.0      # €/m de tira LED (presupuesto)
     fuente: str = FUENTE_POR_DEFECTO
     tolerancia: float = 0.05       # desviación máx. de las curvas
     cama: tuple[float, float, float] = field(default=CAMA_A2L_MM)
@@ -77,6 +87,12 @@ _RANGOS = {
     "separacion": (5, 80),
     "tornillo": (2, 6),
     "tolerancia": (0.005, 0.5),
+    "puente": (0, 20),
+    "barra": (0, 80),
+    "placa_margen": (3, 100),
+    "placa_grosor": (2, 10),
+    "precio_kg": (0, 500),
+    "precio_led_m": (0, 500),
 }
 
 _NOMBRES = {
@@ -84,7 +100,9 @@ _NOMBRES = {
     "frente": "Frente", "fondo": "Fondo", "holgura": "Holgura", "encaje": "Encaje",
     "pared_encaje": "Pared del faldón", "espaciado": "Espaciado", "comp_xy": "Compensación XY",
     "w_por_metro": "Consumo W/m", "separacion": "Separación a pared", "tornillo": "Ø tornillo",
-    "tolerancia": "Tolerancia de curvas",
+    "tolerancia": "Tolerancia de curvas", "puente": "Puente entre letras", "barra": "Barra inferior",
+    "placa_margen": "Margen de la placa", "placa_grosor": "Grosor de la placa",
+    "precio_kg": "Precio del filamento", "precio_led_m": "Precio de la tira LED",
 }
 
 
@@ -116,7 +134,22 @@ def validar(d: Diseno) -> tuple[Diseno, list[str]]:
     cable = _num("cable", d.cable)
     if cable != 0 and not 2 <= cable <= 15:
         raise ErrorEntrada("Ø del agujero de cable entre 2 y 15 mm (o 0 para no hacerlo).")
-    d = replace(d, tira_led=tira, cable=cable, drenaje=bool(d.drenaje), **cambios)
+    agujero = _num("placa_agujero", d.placa_agujero)
+    if agujero != 0 and not 3 <= agujero <= 10:
+        raise ErrorEntrada("Ø de los agujeros de la placa entre 3 y 10 mm (o 0 para no hacerlos).")
+    from .conjunto import CONJUNTOS
+    if d.conjunto not in CONJUNTOS:
+        raise ErrorEntrada(f"Conjunto '{d.conjunto}' desconocido. Opciones: {', '.join(CONJUNTOS)}.")
+    if d.placa_forma not in ("rect", "silueta"):
+        raise ErrorEntrada("La forma de la placa es 'rect' o 'silueta'.")
+    from .fuentes import obtener_fuente
+    obtener_fuente(d.fuente)
+    d = replace(d, tira_led=tira, cable=cable, drenaje=bool(d.drenaje), dividir=bool(d.dividir),
+                placa_agujero=agujero, **cambios)
+    if d.conjunto == "placa" and d.estructura == "halo":
+        raise ErrorEntrada("La placa común no se combina con halo: el halo va separado de la pared.")
+    if d.barra > d.altura * 0.6:
+        raise ErrorEntrada(f"La barra inferior ({d.barra:g} mm) no debe superar el 60 % de la altura.")
 
     p, avisos = d.profundidad, []
     if d.estructura == "frontal":
