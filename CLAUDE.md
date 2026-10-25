@@ -4,14 +4,15 @@
 Letreros 3D Studio, software independiente de rotulación y producción FDM. Usuario final de habla española. Repositorio: davidescalanteitalia-Git/letreros-3d, rama main. Sitio publicado: https://letreros.d4digitalstudio.it. Infraestructura: Coolify alojado en Hetzner; DNS mediante Cloudflare. No asumir que Claude tenga acceso a esos servicios o sus tokens.
 
 ## REALIDAD VERIFICADA (2026-10-25)
-- `index.html`: aplicación web estática en español, v0.3; preview SVG ilustrativa, controles de tipos de letrero, medidas, 10 familias de Google Fonts, preferencias de construcción, guardar/abrir proyectos JSON y exportar un boceto SVG de texto.
-- `Dockerfile`: nginx:1.27-alpine copia index.html y escucha en 80, con healthcheck.
+- `index.html` v0.4: editor en español + pestaña Fabricar STL conectada a la API (comprobar, visor 3D three.js con geometría real, ZIP de piezas, probeta). Vista SVG sigue siendo ilustrativa.
+- `servidor/`: FastAPI que sirve index.html y la API (/api/salud, /api/opciones, /api/comprobar, /api/modelo, /api/letrero, /api/probeta); clave opcional LETREROS_CLAVE, límites de tamaño/tiempo/IP, CSP. three.js 0.170 local en servidor/estaticos/vendor (MIT).
+- `Dockerfile`: python:3.13-slim, usuario no root, uvicorn en puerto 80, healthcheck /api/salud. Misma configuración de Coolify que antes.
 - `docs/`: análisis comparativo y roadmaps; no equivale a código desarrollado.
 - `config/PERFIL_A2L_PETG.md`: Bambu Lab A2L, boquilla 0.4 mm, PETG; medidas nominales 330×320×325 mm; corroborar antes de generar.
 - `.github/workflows/verificar-coolify.yml`: prueba manual de conexión API solo lectura, con secreto COOLIFY_API_TOKEN; no despliega.
 - Se observó despliegue de la v0.1 healthy en Coolify y una captura del sitio online; no afirmar que la v0.3 esté en producción sin comprobar versión publicada.
 - `motor/` (M2, 2026-10-25): motor Python local (fontTools + shapely + manifold3d + trimesh). Texto de una línea con altura de mayúscula; estructuras maciza/caja/frontal (frente a presión)/halo (separadores); validaciones; probeta de holguras; STL por pieza + ficha.json + LEEME. 125 pruebas pytest + CI. M1 STL verificado abriendo en Bambu Studio (A 120×35 y 40×5).
-- No existe aún backend/API, editor 3D real, 3MF, DXF de acrílico, división por cama, base de datos ni autenticación. La web publicada no usa el motor.
+- No existe aún: división por cama, 3MF, DXF de acrílico, otras fuentes para CAD, neón/doble luz, base de datos ni cuentas.
 
 ## Trabajo esperado
 1. Inspeccionar árbol, código y commits antes de cambiar nada; correr tests cuando existan.

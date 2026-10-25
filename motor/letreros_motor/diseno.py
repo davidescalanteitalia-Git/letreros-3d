@@ -107,7 +107,7 @@ def validar(d: Diseno) -> tuple[Diseno, list[str]]:
         v = _num(campo, getattr(d, campo))
         if not mn <= v <= mx:
             raise ErrorEntrada(
-                f"{_NOMBRES[campo]} debe estar entre {mn:g} y {mx:g} mm (recibido {getattr(d, campo)})."
+                f"{_NOMBRES[campo]} debe estar entre {mn:g} y {mx:g} mm (recibido {v:g})."
             )
         cambios[campo] = v
     tira = d.tira_led if d.tira_led is None else _num("tira_led", d.tira_led)

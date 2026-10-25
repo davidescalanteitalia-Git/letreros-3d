@@ -14,7 +14,7 @@ from . import Parametros, exportar, exportar_stl, generar_letra, generar_letrero
 from .fuentes import FUENTE_POR_DEFECTO, FUENTES
 from .proyecto import Proyecto, ResultadoLetra
 
-SUBCOMANDOS = {"letrero", "probeta"}
+SUBCOMANDOS = {"letrero", "probeta", "desde-web"}
 
 
 def _parametros_comunes(ap: argparse.ArgumentParser) -> None:
@@ -64,7 +64,14 @@ def main(argv: list[str] | None = None) -> int:
     pp.add_argument("--holguras", type=float, nargs="+", default=[0.15, 0.25, 0.35, 0.45])
     pp.add_argument("-o", "--salida", required=True, help="carpeta de salida")
 
+    pw = sub.add_parser("desde-web", help="fabricar el proyecto JSON guardado en el editor web")
+    pw.add_argument("proyecto", help="archivo .json de 'Guardar proyecto JSON'")
+    pw.add_argument("--zip", action="store_true")
+    pw.add_argument("-o", "--salida", required=True, help="carpeta de salida (nueva o vacía)")
+
     a = ap.parse_args(argv)
+    if a.cmd == "desde-web":
+        return _desde_web(a)
     comunes = dict(altura=a.altura, profundidad=a.profundidad, pared=a.pared, frente=a.frente, fondo=a.fondo,
                    holgura=a.holgura, encaje=a.encaje, pared_encaje=a.pared_encaje, comp_xy=a.comp_xy,
                    fuente=a.fuente)
@@ -88,6 +95,31 @@ def main(argv: list[str] | None = None) -> int:
     except (ErrorEntrada, ErrorGeometria, ValueError) as e:
         print(f"Error: {e}", file=sys.stderr)
         return 2
+    return 0
+
+
+def _desde_web(a) -> int:
+    import json
+    from pathlib import Path
+
+    from .web import diseno_desde_web
+    try:
+        ruta = Path(a.proyecto)
+        if ruta.stat().st_size > 20_000:
+            raise ErrorEntrada("El proyecto JSON es demasiado grande.")
+        datos = json.loads(ruta.read_text(encoding="utf-8"))
+        proyecto = generar_letrero(diseno_desde_web(datos))
+        destino = exportar(proyecto, a.salida, comprimir=a.zip)
+    except FileNotFoundError:
+        print(f"Error: no existe el archivo {a.proyecto}", file=sys.stderr)
+        return 2
+    except json.JSONDecodeError:
+        print("Error: el archivo no es un JSON válido.", file=sys.stderr)
+        return 2
+    except (ErrorEntrada, ErrorGeometria) as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 2
+    _imprimir_piezas(proyecto, destino)
     return 0
 
 

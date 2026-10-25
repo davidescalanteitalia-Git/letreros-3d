@@ -1,0 +1,12 @@
+.git
+.github
+docs
+config
+muestras
+**/__pycache__
+**/.pytest_cache
+motor/.venv
+motor/salida
+motor/tests
+servidor/tests
+*.md
