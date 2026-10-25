@@ -46,7 +46,11 @@ def main(argv: list[str] | None = None) -> int:
 
     pl = sub.add_parser("letrero", help="generar todas las piezas de un letrero",
                         description="Estructuras: " + " | ".join(f"{k}: {v}" for k, v in ESTRUCTURAS.items()))
-    pl.add_argument("texto", help='texto en una línea, p. ej. "LUCY"')
+    pl.add_argument("texto", help='texto, p. ej. "LUCY"; varias líneas con \\n: "LUCY\\nHAIR"')
+    pl.add_argument("--alineacion", choices=["centro", "izquierda", "derecha"], default="centro",
+                    help="varias líneas: alineación. Def. centro")
+    pl.add_argument("--interlineado", type=float, default=1.4,
+                    help="varias líneas: distancia entre bases × altura (1–3). Def. 1.4")
     pl.add_argument("--estructura", choices=list(ESTRUCTURAS), default="frontal")
     _parametros_comunes(pl)
     pl.add_argument("--espaciado", type=float, default=0.0, help="mm extra entre letras. Def. 0")
@@ -88,7 +92,8 @@ def main(argv: list[str] | None = None) -> int:
                    fuente=a.fuente)
     try:
         if a.cmd == "letrero":
-            d = Diseno(a.texto, estructura=a.estructura, espaciado=a.espaciado, tira_led=a.tira_led,
+            d = Diseno(a.texto.replace("\\n", "\n"), estructura=a.estructura,
+                       alineacion=a.alineacion, interlineado=a.interlineado, espaciado=a.espaciado, tira_led=a.tira_led,
                        w_por_metro=a.w_por_metro, cable=a.cable, drenaje=a.drenaje,
                        separacion=a.separacion, tornillo=a.tornillo, conjunto=a.conjunto, puente=a.puente,
                        barra=a.barra, placa_forma=a.placa_forma, placa_margen=a.placa_margen,

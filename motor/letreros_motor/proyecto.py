@@ -55,6 +55,13 @@ class Proyecto:
     def unidades(self) -> list[ResultadoLetra]:
         return [r for r in self.letras if r.letra.caracter != "base" or r.letra.indice != 0]
 
+    def camas(self):
+        """Reparto de las piezas en camas de impresión (por material)."""
+        if getattr(self, "_camas", None) is None:
+            from .camas import distribuir
+            self._camas = distribuir(self.piezas, self.diseno.cama)
+        return self._camas
+
     def costes(self) -> dict:
         d = self.diseno
         material = self.peso_g / 1000 * d.precio_kg
@@ -71,10 +78,10 @@ class Proyecto:
         minx, miny, maxx, maxy = self.medidas()
         from .conjunto import CONJUNTOS
         lineas = [
-            f"Letrero «{d.texto}» · {d.estructura} ({ESTRUCTURAS[d.estructura]})",
+            f"Letrero «{d.texto.replace(chr(10), ' / ')}» · {d.estructura} ({ESTRUCTURAS[d.estructura]})",
             f"Fuente {obtener_fuente(d.fuente).nombre} · conjunto {d.conjunto} ({CONJUNTOS[d.conjunto]})",
             f"Mayúscula {d.altura:g} mm · conjunto {maxx - minx:.1f} × {maxy - miny:.1f} × {d.profundidad:g} mm",
-            f"Piezas: {len(self.piezas)} · material ≈ {self.peso_g:.0f} g de PETG (sólido al 100 %; el laminador dará el dato real)",
+            f"Piezas: {len(self.piezas)} en {len(self.camas())} cama(s) de impresión · material ≈ {self.peso_g:.0f} g de PETG (sólido al 100 %; el laminador dará el dato real)",
         ]
         if self.metros_led:
             led = f"Tira LED {d.ancho_tira:g} mm: ≈ {self.metros_led:.2f} m (estimación por perímetro interior / 2)"
@@ -92,7 +99,7 @@ class Proyecto:
 def generar_letrero(diseno: Diseno) -> Proyecto:
     d, avisos = validar(diseno)
     obtener_fuente(d.fuente)
-    letras = maquetar(d.texto, d.fuente, d.altura, d.espaciado, d.tolerancia)
+    letras = maquetar(d.texto, d.fuente, d.altura, d.espaciado, d.tolerancia, d.interlineado, d.alineacion)
     unidades, avisos_conjunto = agrupar(letras, d)
     avisos += avisos_conjunto
     resultados = [construir_letra(u, d) for u in unidades]
@@ -107,6 +114,9 @@ def generar_letrero(diseno: Diseno) -> Proyecto:
     return Proyecto(d, resultados, avisos)
 
 
+ARCHIVOS_FIJOS = {"ficha.json", "LEEME.txt", "plantilla-montaje.svg", "contornos.dxf", "camas"}
+
+
 def _medidas(malla: trimesh.Trimesh) -> list[float]:
     return [round(float(v), 2) for v in malla.extents]
 
@@ -116,7 +126,7 @@ def exportar(proyecto: Proyecto, carpeta: str | Path, comprimir: bool = False) -
     carpeta = Path(carpeta)
     if carpeta.exists() and any(carpeta.iterdir()):
         existentes = {p.name for p in carpeta.iterdir()}
-        if not existentes <= {p.archivo for p in proyecto.piezas} | {"ficha.json", "LEEME.txt", "plantilla-montaje.svg"}:
+        if not existentes <= {p.archivo for p in proyecto.piezas} | ARCHIVOS_FIJOS:
             raise ErrorEntrada(f"La carpeta {carpeta} ya contiene otros archivos; elige una carpeta nueva o vacía.")
     carpeta.mkdir(parents=True, exist_ok=True)
     d = proyecto.diseno
@@ -140,7 +150,8 @@ def exportar(proyecto: Proyecto, carpeta: str | Path, comprimir: bool = False) -
              "x_mm": round(r.letra.forma.bounds[0], 2), "y_mm": round(r.letra.forma.bounds[1], 2),
              "ancho_mm": round(r.letra.forma.bounds[2] - r.letra.forma.bounds[0], 2),
              "alto_mm": round(r.letra.forma.bounds[3] - r.letra.forma.bounds[1], 2),
-             "hueca": r.hueca, "cortes_x_mm": [round(x, 1) for x in r.cortes]}
+             "hueca": r.hueca, "cortes_x_mm": [round(x, 1) for x in r.cortes],
+             "cortes_y_mm": [round(y, 1) for y in r.cortes_y], "linea": r.letra.linea}
             for r in proyecto.letras
         ],
         "piezas": [
@@ -150,17 +161,30 @@ def exportar(proyecto: Proyecto, carpeta: str | Path, comprimir: bool = False) -
              "parte": p.parte, "impresion": instrucciones(d.estructura, p.rol)}
             for p in proyecto.piezas
         ],
+        "camas": [
+            {"archivo": f"camas/{c.archivo}", "numero": c.numero, "material": c.material,
+             "peso_g": round(c.peso_g, 1),
+             "piezas": [{"archivo": col.pieza.archivo, "x_mm": round(col.x, 1), "y_mm": round(col.y, 1),
+                         "ancho_mm": round(col.ancho, 1), "alto_mm": round(col.alto, 1)} for col in c.colocaciones]}
+            for c in proyecto.camas()
+        ],
         "avisos": proyecto.avisos,
     }
     (carpeta / "ficha.json").write_text(json.dumps(ficha, ensure_ascii=False, indent=2), encoding="utf-8")
     (carpeta / "LEEME.txt").write_text(_leeme(proyecto, ficha), encoding="utf-8")
     (carpeta / "plantilla-montaje.svg").write_text(plantilla_svg(proyecto), encoding="utf-8")
+    from .camas import cama_3mf, contornos_dxf
+    (carpeta / "contornos.dxf").write_bytes(contornos_dxf(proyecto))
+    (carpeta / "camas").mkdir(exist_ok=True)
+    for c in proyecto.camas():
+        (carpeta / "camas" / c.archivo).write_bytes(cama_3mf(c, f"{d.texto.replace(chr(10), ' / ')} · cama {c.numero}"))
 
     if comprimir:
         zip_path = carpeta.with_suffix(".zip")
         with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
-            for f in sorted(carpeta.iterdir()):
-                z.write(f, f"{carpeta.name}/{f.name}")
+            for f in sorted(carpeta.rglob("*")):
+                if f.is_file():
+                    z.write(f, f"{carpeta.name}/{f.relative_to(carpeta).as_posix()}")
         return zip_path
     return carpeta
 
@@ -171,21 +195,35 @@ def _leeme(proyecto: Proyecto, ficha: dict) -> str:
     for p in ficha["piezas"]:
         x, y, z = p["medidas_mm"]
         partes.append(f"  {p['archivo']:<28} {x:>7.1f} × {y:>6.1f} × {z:>5.1f} mm  {p['peso_g']:>6.1f} g")
+    partes += ["", "CAMAS DE IMPRESIÓN (carpeta camas/: ábrelas en Bambu Studio, ya vienen colocadas)"]
+    from .camas import NOMBRE_MATERIAL
+    for c in ficha["camas"]:
+        partes.append(f"  {c['archivo']:<30} {len(c['piezas'])} pieza(s) · {c['peso_g']:.0f} g · {NOMBRE_MATERIAL[c['material']]}")
     partes += ["", "CÓMO IMPRIMIR"]
     for rol in sorted({p.rol for p in proyecto.piezas}):
         partes.append(f"  {rol}: {instrucciones(d.estructura, rol)}")
-    partes += ["", "MONTAJE (izquierda → derecha, medido desde el borde izquierdo de la primera letra)"]
+    partes += ["", "MONTAJE (medido desde la esquina inferior izquierda del letrero; y hacia arriba)"]
     x0 = min(m["x_mm"] for m in ficha["montaje"])
+    y0 = min(m["y_mm"] for m in ficha["montaje"])
     for m in ficha["montaje"]:
-        partes.append(f"  {m['orden']:02d} «{m['caracter']}»  x = {m['x_mm'] - x0:7.1f} mm  ancho {m['ancho_mm']:6.1f} mm")
-    divididas = [m for m in ficha["montaje"] if m["cortes_x_mm"]]
+        partes.append(f"  {m['orden']:02d} «{m['caracter']}»  x = {m['x_mm'] - x0:7.1f} mm  y = {m['y_mm'] - y0:7.1f} mm  "
+                      f"ancho {m['ancho_mm']:6.1f} × alto {m['alto_mm']:6.1f} mm")
+    divididas = [m for m in ficha["montaje"] if m["cortes_x_mm"] or m["cortes_y_mm"]]
     if divididas:
         partes += ["", "PIEZAS DIVIDIDAS (la cama no admite la pieza entera)"]
         for m in divididas:
-            partes.append(f"  «{m['caracter']}»: cortes en x = {', '.join(f'{x - x0:.0f}' for x in m['cortes_x_mm'])} mm "
-                          "(partes A, B, C… de izquierda a derecha; empalmes AB, BC… o colas de milano)")
+            donde = []
+            if m["cortes_x_mm"]:
+                donde.append("x = " + ", ".join(f"{x - x0:.0f}" for x in m["cortes_x_mm"]))
+            if m["cortes_y_mm"]:
+                donde.append("y = " + ", ".join(f"{y - y0:.0f}" for y in m["cortes_y_mm"]))
+            partes.append(f"  «{m['caracter']}»: cortes en {' · '.join(donde)} mm")
+        partes.append("  Partes: letras A, B, C… de izquierda a derecha; números 1, 2… de abajo arriba (A1, B1, A2…).")
+        partes.append("  Uniones: colas de milano en macizas; en huecas, placa de empalme con el nombre de las dos partes (AB, 12, A1A2…).")
     partes += ["", "PLANTILLA: plantilla-montaje.svg está a escala 1:1 (mm). Imprímela al 100 % para marcar en la pared "
                "la posición de cada pieza, los agujeros de cable (+) y los separadores (o)."]
+    partes += ["", "CONTORNOS: contornos.dxf (mm, 1:1, en posición de montaje). Capa LETRAS para cortar a láser "
+               "el frente de metacrilato (estructura caja) o vinilo; CORTES y CABLE como referencia."]
     if d.estructura == "frontal":
         partes += ["", f"Frente a presión con holgura {d.holgura:g} mm: calibrar antes con `python -m letreros_motor probeta`."]
     if d.estructura == "halo":
@@ -215,14 +253,16 @@ def plantilla_svg(proyecto: Proyecto) -> str:
 
     el = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{ancho:.1f}mm" height="{alto:.1f}mm" '
           f'viewBox="0 0 {ancho:.2f} {alto:.2f}" font-family="Arial, sans-serif">',
-          f'<title>Plantilla de montaje 1:1 · {escape(proyecto.diseno.texto)}</title>',
+          f'<title>Plantilla de montaje 1:1 · {escape(proyecto.diseno.texto.replace(chr(10), ' / '))}</title>',
           '<rect width="100%" height="100%" fill="#fff"/>']
     for r in proyecto.letras:
         es_placa = r.letra.indice == 0 and r.letra.caracter == "base"
         el.append(f'<path d="{camino(r.letra.forma)}" fill="{"none" if es_placa else "#eef3fb"}" '
                   f'stroke="{"#999" if es_placa else "#1f4e8c"}" stroke-width="0.4" fill-rule="evenodd"/>')
-        for x in r.cortes:
-            el.append(f'<line x1="{x - minx + m:.2f}" y1="{m / 2:.2f}" x2="{x - minx + m:.2f}" y2="{alto - m / 2:.2f}" '
+        for (xa, ya), (xb, yb) in r.juntas:
+            a1, b1 = pt(xa, ya).split(",")
+            a2, b2 = pt(xb, yb).split(",")
+            el.append(f'<line x1="{a1}" y1="{b1}" x2="{a2}" y2="{b2}" '
                       'stroke="#c0392b" stroke-width="0.4" stroke-dasharray="3 2"/>')
         for x, y in r.puntos_cable:
             a, b = pt(x, y).split(",")

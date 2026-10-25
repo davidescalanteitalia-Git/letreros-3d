@@ -40,7 +40,7 @@ def test_espacios_y_espaciado():
     assert b[1].origen_x - a[1].origen_x == pytest.approx(20)  # dos huecos de 10 mm
 
 
-@pytest.mark.parametrize("texto", ["", "   ", "A\nB", "X" * 41, "A\u0007"])
+@pytest.mark.parametrize("texto", ["", "   ", "A\tB", "A\nB\nC\nD\nE", "X" * 41, "A\u0007"])
 def test_texto_invalido(texto):
     with pytest.raises(ErrorEntrada):
         piezas_de(texto)
@@ -165,11 +165,12 @@ def test_letra_que_no_cabe_en_la_cama():
     # Más ancha que la cama: se divide sola.
     pr = piezas_de("W", altura=300)
     assert any("dividida" in a for a in pr.avisos)
-    # Sin división permitida, o más alta que la cama: error claro.
+    # Sin división permitida: error claro.
     with pytest.raises(ErrorEntrada, match="no cabe"):
         piezas_de("W", altura=300, dividir=False)
-    with pytest.raises(ErrorEntrada, match="alto"):
-        piezas_de("I", altura=400)
+    # Más alta que la cama (v0.6): se divide también en horizontal.
+    pr = piezas_de("I", altura=400)
+    assert {p.parte for p in pr.piezas if p.rol == "cuerpo"} == {"1", "2"}
 
 
 def test_letra_que_solo_cabe_girada():
