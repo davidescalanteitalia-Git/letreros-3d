@@ -56,6 +56,17 @@ def main(argv: list[str] | None = None) -> int:
     pl.add_argument("--drenaje", action="store_true", help="agujero de drenaje Ø3 para exterior")
     pl.add_argument("--separacion", type=float, default=20.0, help="halo: distancia a la pared. Def. 20")
     pl.add_argument("--tornillo", type=float, default=3.2, help="halo: Ø agujero del separador. Def. 3.2")
+    pl.add_argument("--conjunto", choices=["individual", "unidas", "placa"], default="individual",
+                    help="letras sueltas, unidas en una pieza por palabra, o sobre placa común")
+    pl.add_argument("--puente", type=float, default=0.0, help="unidas: suavizado de rincones entre letras (mm)")
+    pl.add_argument("--barra", type=float, default=0.0, help="unidas: barra inferior de esta altura (mm)")
+    pl.add_argument("--placa-forma", choices=["rect", "silueta"], default="rect")
+    pl.add_argument("--placa-margen", type=float, default=15.0)
+    pl.add_argument("--placa-grosor", type=float, default=4.0)
+    pl.add_argument("--placa-agujero", type=float, default=5.0, help="Ø agujeros de fijación de la placa (0 = no)")
+    pl.add_argument("--no-dividir", action="store_true", help="error en vez de dividir lo que no cabe en la cama")
+    pl.add_argument("--precio-kg", type=float, default=25.0, help="€/kg de filamento para el presupuesto")
+    pl.add_argument("--precio-led-m", type=float, default=0.0, help="€/m de tira LED para el presupuesto")
     pl.add_argument("--zip", action="store_true", help="además, comprimir la carpeta en .zip")
     pl.add_argument("-o", "--salida", required=True, help="carpeta de salida (nueva o vacía)")
 
@@ -79,7 +90,10 @@ def main(argv: list[str] | None = None) -> int:
         if a.cmd == "letrero":
             d = Diseno(a.texto, estructura=a.estructura, espaciado=a.espaciado, tira_led=a.tira_led,
                        w_por_metro=a.w_por_metro, cable=a.cable, drenaje=a.drenaje,
-                       separacion=a.separacion, tornillo=a.tornillo, **comunes)
+                       separacion=a.separacion, tornillo=a.tornillo, conjunto=a.conjunto, puente=a.puente,
+                       barra=a.barra, placa_forma=a.placa_forma, placa_margen=a.placa_margen,
+                       placa_grosor=a.placa_grosor, placa_agujero=a.placa_agujero, dividir=not a.no_dividir,
+                       precio_kg=a.precio_kg, precio_led_m=a.precio_led_m, **comunes)
             proyecto = generar_letrero(d)
             destino = exportar(proyecto, a.salida, comprimir=a.zip)
             _imprimir_piezas(proyecto, destino)

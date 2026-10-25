@@ -2,11 +2,15 @@
 
 Aplicación propia para diseño y futura fabricación de letreros corpóreos impresos en 3D.
 
-## Estado actual (v0.4)
+## Estado actual (v0.5)
 **Web + motor en un solo contenedor.** `letreros.d4digitalstudio.it` sirve el editor (`index.html`) y la API del motor (`servidor/app.py`, FastAPI):
 - Diseñar: texto, fuente, medidas, estructura; guardar/abrir proyecto JSON; boceto SVG.
 - **Fabricar STL**: comprobar el diseño (medidas reales, peso PETG, metros de LED, avisos por letra), **visor 3D de la geometría real** (vista explotada, corte, luz encendida), descargar todas las piezas en ZIP (STL por pieza + `LEEME.txt` con montaje + `ficha.json`) y la probeta de holguras.
-- Fabricable hoy: Montserrat Bold en frontal (frente a presión), halo (separadores), caja y maciza. Neón, doble luz, frente opaco, otras fuentes y división de letras grandes: próximas versiones.
+- **10 fuentes fabricables** (OFL): Montserrat, Poppins, Roboto, Oswald, Bebas Neue, Playfair Display, Lobster, Pacifico, Dancing Script y Great Vibes. Composición con **HarfBuzz**: kerning, ligaduras y enlaces de las manuscritas.
+- **Construcción del conjunto**: letras sueltas · **unidas** (una pieza por palabra con puentes automáticos y barra inferior opcional) · **sobre placa común** (rectangular o silueta, siluetas grabadas para pegar cada letra, agujeros de fijación y de cable).
+- **División automática por cama**: lo que no cabe se corta en vertical por los puntos más estrechos; macizas con cola de milano, huecas con placa de empalme interior; partes A, B, C….
+- **Plantilla de montaje 1:1** (`plantilla-montaje.svg`) y **presupuesto** de filamento y LED.
+- Estructuras: frontal (frente a presión), halo (separadores), caja y maciza. Neón, doble luz, frente opaco, acrílico/DXF y varias líneas: próximas versiones.
 
 El motor también se usa sin web desde PowerShell: ver `motor/README.md`.
 
@@ -36,5 +40,5 @@ React + TypeScript + Three.js en frontend; FastAPI + motor CAD para export STL, 
 ## Pendiente
 - Imprimir la probeta de holguras en PETG y fijar el valor por defecto real.
 - Verificar en Bambu Studio y en pieza física las estructuras frontal y halo.
-- División de letras más grandes que la cama (colas de milano), más fuentes con licencia, kerning y varias líneas.
+- Probar en pieza física la cola de milano y la placa de empalme; división horizontal para letras más altas que la cama; varias líneas.
 - Acrílico + DXF, neón flex y doble luz.

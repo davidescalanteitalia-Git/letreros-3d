@@ -149,36 +149,49 @@ def _a_multipoligono(forma, letra: str) -> MultiPolygon:
     return MultiPolygon([orient(p) for p in poligonos])
 
 
+def _tt(fuente) -> TTFont:
+    """Acepta la clave de una fuente registrada (variables ya fijadas) o una ruta a un .ttf estático."""
+    from .fuentes import FUENTES, ttfont
+    if isinstance(fuente, str) and fuente in FUENTES:
+        return ttfont(fuente)
+    return _cargar(str(fuente))
+
+
 @lru_cache(maxsize=8)
 def _cargar(ruta: str) -> TTFont:
     return TTFont(ruta)
 
 
-def altura_mayuscula_unidades(ruta_fuente) -> float:
+def altura_mayuscula_unidades(fuente) -> float:
     """Altura de la mayúscula (A, H, M) en unidades de la fuente."""
-    fuente = _cargar(str(ruta_fuente))
-    cap = getattr(fuente["OS/2"], "sCapHeight", 0) or 0
+    tt = _tt(fuente)
+    cap = getattr(tt["OS/2"], "sCapHeight", 0) or 0
     if cap <= 0:  # fuentes antiguas sin sCapHeight: medir la H
-        glyphset = fuente.getGlyphSet()
+        glyphset = tt.getGlyphSet()
         pluma = _PlumaPoligonos(glyphset, paso_unidades=1e9)
-        glyphset[fuente.getBestCmap()[ord("H")]].draw(pluma)
+        glyphset[tt.getBestCmap()[ord("H")]].draw(pluma)
         cap = max(p[1] for a in pluma.anillos for p in a)
     return float(cap)
 
 
-def glifo_mm(ruta_fuente, caracter: str, escala: float, tolerancia_mm: float = 0.05):
+def glifo_por_nombre_mm(fuente, nombre: str, escala: float, tolerancia_mm: float = 0.05) -> MultiPolygon:
+    tt = _tt(fuente)
+    forma = _forma_glifo(tt.getGlyphSet(), nombre, escala, tolerancia_mm)
+    if forma.is_empty:
+        return MultiPolygon()
+    return _a_multipoligono(forma, nombre)
+
+
+def glifo_mm(fuente, caracter: str, escala: float, tolerancia_mm: float = 0.05):
     """(silueta en mm con línea base en y=0, avance horizontal en mm).
 
     La silueta puede estar vacía (espacio). No se desplaza: x=0 es el origen
     del glifo, así se respetan los márgenes laterales de la fuente.
     """
-    fuente = _cargar(str(ruta_fuente))
-    cmap = fuente.getBestCmap()
+    tt = _tt(fuente)
+    cmap = tt.getBestCmap()
     if ord(caracter) not in cmap:
         raise ErrorEntrada(f"La fuente no contiene el carácter '{caracter}'.")
     nombre = cmap[ord(caracter)]
-    avance = fuente["hmtx"][nombre][0] * escala
-    forma = _forma_glifo(fuente.getGlyphSet(), nombre, escala, tolerancia_mm)
-    if forma.is_empty:
-        return MultiPolygon(), avance
-    return _a_multipoligono(forma, caracter), avance
+    avance = tt["hmtx"][nombre][0] * escala
+    return glifo_por_nombre_mm(fuente, nombre, escala, tolerancia_mm), avance

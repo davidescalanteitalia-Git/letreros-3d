@@ -32,13 +32,15 @@ DRENAJE_MM = 3.0
 @dataclass
 class Pieza:
     letra: Letra
-    rol: str  # cuerpo | frente
+    rol: str  # cuerpo | frente | empalme | placa
     malla: trimesh.Trimesh
     huella: MultiPolygon  # contorno apoyado en la cama, para comprobar el tamaño
+    parte: str = ""  # A, B, C… si la pieza se dividió; AB, BC… en los empalmes
 
     @property
     def archivo(self) -> str:
-        return f"{self.letra.codigo}-{self.rol}.stl"
+        sufijo = f"-{self.parte}" if self.parte else ""
+        return f"{self.letra.codigo}{sufijo}-{self.rol}.stl"
 
     @property
     def volumen_cm3(self) -> float:
@@ -56,6 +58,9 @@ class ResultadoLetra:
     avisos: list[str] = field(default_factory=list)
     metros_led: float = 0.0
     hueca: bool = False
+    cortes: list = field(default_factory=list)
+    puntos_cable: list = field(default_factory=list)
+    puntos_separadores: list = field(default_factory=list)
 
 
 # --------------------------------------------------------------------------- utilidades 2D
@@ -134,7 +139,7 @@ def _agujero_drenaje(huecos: list[Polygon], d: Diseno, z_fondo: float, avisos: l
 
 
 def _separadores(huecos: list[Polygon], d: Diseno, avisos: list[str], c: str):
-    solidos, z0, z1 = [], d.frente, d.profundidad + d.separacion
+    solidos, colocados, z0, z1 = [], [], d.frente, d.profundidad + d.separacion
     for hueco in huecos:
         for region in _mitades(hueco):
             p, r = _punto_mas_holgado(region)
@@ -144,20 +149,23 @@ def _separadores(huecos: list[Polygon], d: Diseno, avisos: list[str], c: str):
                 continue
             solidos.append(cilindro(p.x, p.y, r_ext, z0 - 0.01, z1))
             solidos.append(cilindro(p.x, p.y, d.tornillo / 2, z0 + 1.0, z1 + 1))
-    # devuelve pares (macizo, agujero)
-    return solidos[0::2], solidos[1::2]
+            colocados.append((p.x, p.y))
+    return solidos[0::2], solidos[1::2], colocados
 
 
 def _comprobar_led(huecos: list[Polygon], d: Diseno, avisos: list[str], c: str) -> float:
     ancho = d.ancho_tira
     if ancho <= 0 or not huecos:
         return 0.0
+    estrechas = []
     for h in huecos:
         if h.buffer(-(ancho / 2 + 0.3)).is_empty:
             _, r = _punto_mas_holgado(h)
-            avisos.append(
-                f"'{c}': hay una zona interior de ~{2 * r:.1f} mm de ancho; no cabe la tira de {ancho:g} mm."
-            )
+            estrechas.append(2 * r)
+    if estrechas:
+        rango = f"~{min(estrechas):.1f} mm" if len(estrechas) == 1 else f"~{min(estrechas):.1f}–{max(estrechas):.1f} mm"
+        avisos.append(f"'{c}': {len(estrechas)} zona(s) interior(es) de {rango} de ancho; no cabe la tira de {ancho:g} mm "
+                      "(usa tira más estrecha, más altura o estructura maciza).")
     # Para trazos alargados, la línea central ≈ perímetro interior / 2.
     return sum(h.length for h in huecos) / 2 / 1000.0
 
@@ -184,6 +192,10 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
             huecos.extend(h.geoms)
         res.hueca = bool(huecos)
     hueco = MultiPolygon(huecos)
+    if d.estructura in ("caja", "frontal") and d.cable > 0 and huecos:
+        pc, rc = _punto_mas_holgado(max(huecos, key=lambda q: q.area))
+        if rc >= d.cable / 2 + 0.8:
+            res.puntos_cable = [(pc.x, pc.y)]
     p = d.profundidad
 
     if d.estructura == "maciza":
@@ -214,32 +226,90 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
 
     elif d.estructura == "halo":
         cuerpo = prisma(forma, 0, p) - prisma(hueco, d.frente, p + 1)
-        macizos, agujeros = _separadores(huecos, d, av, c)
+        macizos, agujeros, res.puntos_separadores = _separadores(huecos, d, av, c)
         cuerpo = unir([cuerpo, *macizos]) - unir(agujeros)
         solidos.append(("cuerpo", cuerpo))
         res.metros_led = _comprobar_led(huecos, d, av, c)
 
-    for rol, solido in solidos:
-        if retoques and rol in retoques:
-            solido = retoques[rol](solido)
-        res.piezas.append(_pieza(letra, rol, solido, forma))
+    if retoques:
+        solidos = [(rol, retoques[rol](sol) if rol in retoques else sol) for rol, sol in solidos]
+
+    cabe, _, (w, h) = _cabe_en_cama(forma, d.cama)
+    if cabe:
+        for rol, solido in solidos:
+            res.piezas.append(_pieza(letra, rol, solido, forma))
+    else:
+        if not getattr(d, "dividir", True):
+            raise ErrorEntrada(
+                f"'{c}' mide {w:.0f} × {h:.0f} mm y no cabe en la cama {d.cama[0]:g} × {d.cama[1]:g} mm. "
+                "Activa la división automática o reduce la altura."
+            )
+        _dividir(res, letra, d, forma, hueco, solidos, puntos_clave(huecos, d))
 
     for pieza in res.piezas:
         cabe, girada, (w, h) = _cabe_en_cama(pieza.huella, d.cama)
         if not cabe:
             raise ErrorEntrada(
-                f"La letra '{c}' mide {w:.0f} × {h:.0f} mm y no cabe en la cama "
-                f"{d.cama[0]:g} × {d.cama[1]:g} mm ni girada. Reduce la altura (la división en piezas llega en M6)."
+                f"La pieza {pieza.archivo} mide {w:.0f} × {h:.0f} mm y no cabe en la cama "
+                f"{d.cama[0]:g} × {d.cama[1]:g} mm; reduce la altura."
             )
         if girada:
-            av.append(f"'{c}' ({pieza.rol}): solo cabe girada en la cama; en Bambu Studio usa 'Orientar automáticamente'.")
+            av.append(f"{pieza.archivo}: solo cabe girada en la cama; en Bambu Studio usa 'Orientar automáticamente'.")
     return res
 
 
-def _pieza(letra: Letra, rol: str, solido: m3d.Manifold, huella: MultiPolygon) -> Pieza:
+def puntos_clave(huecos: list[Polygon], d: Diseno) -> list[tuple[float, float]]:
+    """Dónde van el agujero de cable y los separadores (para no cortar por ahí)."""
+    pts = []
+    if huecos and d.estructura in ("caja", "frontal") and d.cable > 0:
+        p, _ = _punto_mas_holgado(max(huecos, key=lambda q: q.area))
+        pts.append((p.x, p.y))
+    if d.estructura == "halo":
+        for h in huecos:
+            for region in _mitades(h):
+                p, _ = _punto_mas_holgado(region)
+                pts.append((p.x, p.y))
+    return pts
+
+
+EMPALME_GROSOR = 2.4
+
+
+def _dividir(res, letra, d, forma, hueco, solidos, puntos):
+    from shapely.geometry import Point
+
+    from .division import empalmes, planificar
+    macizo = d.estructura == "maciza" or not res.hueca
+    plan = planificar(forma, d.cama, macizo, d.holgura, [x for x, _ in puntos])
+    alto = d.profundidad + d.separacion + 60
+    for i, (nombre, region) in enumerate(zip(plan.nombres, plan.regiones_hembra)):
+        corte = prisma(region, -30, alto)
+        for rol, solido in solidos:
+            parte = solido ^ corte
+            if parte.is_empty() or parte.volume() < 1.0:
+                continue
+            huella = multipoligono(forma.intersection(region))
+            res.piezas.append(_pieza(letra, rol, parte, huella, nombre))
+    if not macizo:
+        libres = [Point(x, y).buffer(max(d.cable / 2, R_SEPARADOR) + 1.5) for x, y in puntos]
+        for k, zona in enumerate(empalmes(hueco, plan.cortes, d.holgura)):
+            for q in libres:
+                zona = multipoligono(zona.difference(q))
+            if zona.is_empty:
+                res.avisos.append(f"'{letra.caracter}': el corte {plan.nombres[k]}|{plan.nombres[k + 1]} no tiene sitio para empalme; pégalo con refuerzo.")
+                continue
+            res.piezas.append(_pieza(letra, "empalme", prisma(zona, 0, EMPALME_GROSOR), zona,
+                                     plan.nombres[k] + plan.nombres[k + 1]))
+    res.cortes = plan.cortes
+    tipo = "cola de milano" if macizo else "corte recto + placa de empalme interior"
+    res.avisos.append(f"'{letra.caracter}': dividida en {len(plan.regiones)} partes ({tipo}) en x = "
+                      + ", ".join(f"{x:.0f}" for x in plan.cortes) + " mm.")
+
+
+def _pieza(letra: Letra, rol: str, solido: m3d.Manifold, huella: MultiPolygon, parte: str = "") -> Pieza:
     if solido.is_empty():
         raise ErrorGeometria(f"La pieza {rol} de '{letra.caracter}' quedó vacía.")
     malla = a_trimesh(solido)
     if not (malla.is_watertight and malla.is_winding_consistent and malla.is_volume):
         raise ErrorGeometria(f"La pieza {rol} de '{letra.caracter}' no es un sólido cerrado.")
-    return Pieza(letra, rol, malla, huella)
+    return Pieza(letra, rol, malla, huella, parte)

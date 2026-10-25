@@ -142,6 +142,7 @@ def _informe(proyecto: lm.Proyecto) -> dict:
         "peso_g": round(proyecto.peso_g, 1),
         "metros_led": round(proyecto.metros_led, 2),
         "estructura": proyecto.diseno.estructura,
+        "costes": proyecto.costes(),
     }
 
 
@@ -162,13 +163,18 @@ def _modelo(datos: dict) -> dict:
         if (d.estructura, p.rol) in _VOLTEAR:
             v[:, 2] = d.profundidad - v[:, 2]
             f = f[:, [0, 2, 1]].copy()
+        elif p.rol == "empalme":  # va pegado por dentro: sobre el fondo, o detrás del frente en halo
+            v[:, 2] += (d.profundidad - d.frente - v[:, 2].max()) if d.estructura == "halo" else d.fondo
+        elif p.rol == "placa":  # detrás de las letras
+            v[:, 2] -= d.placa_grosor
         minimo, maximo = np.minimum(minimo, v.min(0)), np.maximum(maximo, v.max(0))
         piezas.append({
-            "archivo": p.archivo, "rol": p.rol, "caracter": p.letra.caracter,
-            "v": base64.b64encode(v.tobytes()).decode(), "i": base64.b64encode(f.tobytes()).decode(),
+            "archivo": p.archivo, "rol": p.rol, "caracter": p.letra.caracter, "parte": p.parte,
+            "unidad": p.letra.indice, "v": base64.b64encode(v.tobytes()).decode(), "i": base64.b64encode(f.tobytes()).decode(),
         })
     return {
         "estructura": d.estructura, "profundidad": d.profundidad, "separacion": d.separacion,
+        "cama": list(d.cama), "costes": proyecto.costes(),
         "minimo": [round(float(x), 2) for x in minimo], "maximo": [round(float(x), 2) for x in maximo],
         "piezas": piezas, **{k: v for k, v in _informe(proyecto).items() if k != "piezas"},
     }

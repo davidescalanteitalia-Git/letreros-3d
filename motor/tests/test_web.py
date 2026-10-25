@@ -27,7 +27,7 @@ def test_campos_extra_y_coma_decimal():
 
 
 @pytest.mark.parametrize("cambio", [
-    {"schema_version": 3}, {"style": "neon"}, {"style": "dual"}, {"style": "x"}, {"font": "Pacifico"},
+    {"schema_version": 3}, {"style": "neon"}, {"style": "dual"}, {"style": "x"}, {"font": "Comic Sans"}, {"layout": "zigzag"},
     {"height": "doce"}, {"bedx": "10", "bedy": "10"}, {"letters": {"a": 1}},
 ])
 def test_rechazos(cambio):

@@ -56,6 +56,21 @@ Añade `--zip` para obtener además `salida\LUCY.zip`.
 | `--separacion` | 20 | 5–80 | Halo: distancia de la letra a la pared. |
 | `--tornillo` | 3,2 | 2–6 | Halo: Ø del agujero de cada separador. |
 
+### Fuente, conjunto, división y presupuesto (v0.5)
+| Opción | Def. | Qué es |
+|---|---|---|
+| `--fuente` | montserrat-bold | `montserrat-bold`, `poppins-bold`, `roboto-bold`, `oswald-bold`, `bebas-neue`, `playfair-bold`, `lobster`, `pacifico`, `dancing-script-bold`, `great-vibes`. |
+| `--conjunto` | individual | `individual` (sueltas), `unidas` (una pieza por palabra, puentes automáticos), `placa` (sobre placa común). |
+| `--barra` | 0 | Unidas: barra inferior de esta altura que une las letras de palo. |
+| `--puente` | 0 | Unidas: suaviza los rincones entre letras. |
+| `--placa-forma` / `--placa-margen` / `--placa-grosor` / `--placa-agujero` | rect / 15 / 4 / 5 | Placa común. Lleva grabada la silueta de cada letra (0,6 mm) y agujeros de cable alineados. |
+| `--no-dividir` | — | Error en vez de dividir lo que no cabe en la cama. |
+| `--precio-kg` / `--precio-led-m` | 25 / 0 | Presupuesto de materiales en €. |
+
+Ejemplo: `python -m letreros_motor letrero "aperto" --fuente pacifico --conjunto unidas --altura 100 -o salida\aperto`
+
+El paquete incluye además `plantilla-montaje.svg` a escala 1:1 (posición de cada pieza, cable +, separadores o, cortes --).
+
 ### Lo que comprueba antes de exportar
 - Valores fuera de rango, profundidad insuficiente para fondo + frente + encaje, piezas más altas que la cama.
 - Cada pieza: sólido cerrado (manifold), apoyada en z = 0, cabe en la cama A2L (320 × 310 × 325) recta o girada.
@@ -69,8 +84,7 @@ python -m letreros_motor A --altura 120 --profundidad 35 -o salida\A.stl
 Aquí `--altura` es la del contorno de esa letra (convención M1, se conserva por compatibilidad).
 
 ## Límites actuales
-- Una línea de texto, una fuente (Montserrat Bold OFL). Sin pares de kerning: el espaciado final se decide al montar.
-- Letras más grandes que la cama: error (la división con colas de milano es la fase M6).
+- Una línea de texto. División solo vertical: una pieza más alta que la cama da error.
 - Metros de LED: estimación (perímetro interior / 2). El peso es el del sólido al 100 %; el laminador da el real.
 - Sin acrílico/DXF todavía (fase M4).
 
