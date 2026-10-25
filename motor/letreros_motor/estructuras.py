@@ -58,7 +58,9 @@ class ResultadoLetra:
     avisos: list[str] = field(default_factory=list)
     metros_led: float = 0.0
     hueca: bool = False
-    cortes: list = field(default_factory=list)
+    cortes: list = field(default_factory=list)  # x de los cortes verticales
+    cortes_y: list = field(default_factory=list)  # y de los cortes horizontales
+    juntas: list = field(default_factory=list)  # [((x0, y0), (x1, y1))] tramos de corte, para la plantilla
     puntos_cable: list = field(default_factory=list)
     puntos_separadores: list = field(default_factory=list)
 
@@ -280,9 +282,9 @@ def _dividir(res, letra, d, forma, hueco, solidos, puntos):
 
     from .division import empalmes, planificar
     macizo = d.estructura == "maciza" or not res.hueca
-    plan = planificar(forma, d.cama, macizo, d.holgura, [x for x, _ in puntos])
+    plan = planificar(forma, d.cama, macizo, d.holgura, puntos)
     alto = d.profundidad + d.separacion + 60
-    for i, (nombre, region) in enumerate(zip(plan.nombres, plan.regiones_hembra)):
+    for nombre, region in zip(plan.nombres, plan.regiones_hembra):
         corte = prisma(region, -30, alto)
         for rol, solido in solidos:
             parte = solido ^ corte
@@ -292,18 +294,23 @@ def _dividir(res, letra, d, forma, hueco, solidos, puntos):
             res.piezas.append(_pieza(letra, rol, parte, huella, nombre))
     if not macizo:
         libres = [Point(x, y).buffer(max(d.cable / 2, R_SEPARADOR) + 1.5) for x, y in puntos]
-        for k, zona in enumerate(empalmes(hueco, plan.cortes, d.holgura)):
+        for (union, _), zona in zip(plan.juntas, empalmes(hueco, plan.juntas, d.holgura)):
             for q in libres:
                 zona = multipoligono(zona.difference(q))
             if zona.is_empty:
-                res.avisos.append(f"'{letra.caracter}': el corte {plan.nombres[k]}|{plan.nombres[k + 1]} no tiene sitio para empalme; pégalo con refuerzo.")
+                res.avisos.append(f"'{letra.caracter}': la junta {union} no tiene sitio para empalme; pégala con refuerzo.")
                 continue
-            res.piezas.append(_pieza(letra, "empalme", prisma(zona, 0, EMPALME_GROSOR), zona,
-                                     plan.nombres[k] + plan.nombres[k + 1]))
+            res.piezas.append(_pieza(letra, "empalme", prisma(zona, 0, EMPALME_GROSOR), zona, union))
     res.cortes = plan.cortes
+    res.cortes_y = plan.cortes_y
+    res.juntas = [tuple(map(tuple, seg.coords)) for _, seg in plan.juntas]
     tipo = "cola de milano" if macizo else "corte recto + placa de empalme interior"
-    res.avisos.append(f"'{letra.caracter}': dividida en {len(plan.regiones)} partes ({tipo}) en x = "
-                      + ", ".join(f"{x:.0f}" for x in plan.cortes) + " mm.")
+    donde = []
+    if plan.cortes:
+        donde.append("x = " + ", ".join(f"{x:.0f}" for x in plan.cortes))
+    if plan.cortes_y:
+        donde.append("y = " + ", ".join(f"{y:.0f}" for y in plan.cortes_y))
+    res.avisos.append(f"'{letra.caracter}': dividida en {len(plan.nombres)} partes ({tipo}) en " + " · ".join(donde) + " mm.")
 
 
 def _pieza(letra: Letra, rol: str, solido: m3d.Manifold, huella: MultiPolygon, parte: str = "") -> Pieza:

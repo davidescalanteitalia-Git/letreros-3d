@@ -25,7 +25,10 @@ python -m letreros_motor letrero "LUCY" --estructura frontal --altura 120 --prof
 Resultado en `salida\LUCY\`:
 - `01-L-cuerpo.stl`, `01-L-frente.stl`, `02-U-cuerpo.stl`… una pieza por archivo, ya orientadas para imprimir;
 - `LEEME.txt`: resumen, medidas y peso de cada pieza, cómo imprimir y **mapa de montaje** (posición X de cada letra);
-- `ficha.json`: lo mismo en datos (parámetros, piezas, avisos, metros de LED).
+- `ficha.json`: lo mismo en datos (parámetros, piezas, camas, avisos, metros de LED);
+- `camas/cama-01-opaco.3mf`, `cama-02-difusor.3mf`…: las piezas ya colocadas en la cama de la A2L, separadas por filamento (opaco: cuerpos, empalmes, placa · difusor: frentes). Ábrelas en Bambu Studio;
+- `contornos.dxf`: contornos 1:1 en mm y en posición de montaje (capas LETRAS, PLACA, CORTES, CABLE) para láser o vinilo;
+- `plantilla-montaje.svg`: plantilla 1:1 para marcar en la pared.
 Añade `--zip` para obtener además `salida\LUCY.zip`.
 
 ### Estructuras (`--estructura`)
@@ -56,6 +59,10 @@ Añade `--zip` para obtener además `salida\LUCY.zip`.
 | `--separacion` | 20 | 5–80 | Halo: distancia de la letra a la pared. |
 | `--tornillo` | 3,2 | 2–6 | Halo: Ø del agujero de cada separador. |
 
+### Varias líneas (v0.6)
+Escribe `\n` donde quieras el salto: `python -m letreros_motor letrero "LUCY\nHAIR" --alineacion izquierda --interlineado 1.3 -o salida\LUCY`.
+Hasta 4 líneas de 40 caracteres. `--alineacion` centro | izquierda | derecha (sobre el ancho visible de cada línea); `--interlineado` 1–3 × altura (def. 1,4). Con letras unidas, cada línea es una pieza aparte.
+
 ### Fuente, conjunto, división y presupuesto (v0.5)
 | Opción | Def. | Qué es |
 |---|---|---|
@@ -84,7 +91,8 @@ python -m letreros_motor A --altura 120 --profundidad 35 -o salida\A.stl
 Aquí `--altura` es la del contorno de esa letra (convención M1, se conserva por compatibilidad).
 
 ## Límites actuales
-- Una línea de texto. División solo vertical: una pieza más alta que la cama da error.
+- División: vertical por los puntos más estrechos y, si la pieza es más alta que la cama, también horizontal (rejilla A1, B1, A2…).
+- El reparto en camas usa rectángulos (estantes); Bambu Studio puede reordenar con «Organizar» si quieres aprovechar más la cama.
 - Metros de LED: estimación (perímetro interior / 2). El peso es el del sólido al 100 %; el laminador da el real.
 - Sin acrílico/DXF todavía (fase M4).
 

@@ -8,4 +8,5 @@ numpy==2.5.3
 scipy==1.18.1  # trimesh lo usa para contar cuerpos y reparar normales
 mapbox-earcut==2.1.0
 networkx==3.7
+ezdxf==1.4.5  # contornos DXF 1:1 (corte láser de metacrilato, vinilo)
 pytest==9.1.1

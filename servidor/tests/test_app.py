@@ -80,7 +80,8 @@ def test_probeta(cliente):
     ({"wall": "abc"}, "no es un número"),
     ({"letters": ""}, "vacío"),
     ({"schema_version": 2}, "versión"),
-    ({"letters": "WWWW", "height": "400"}, "alto"),
+    ({"letters": "A\nB\nC\nD\nE"}, "líneas"),
+    ({"letters": "A\nB", "alineacion": "justificada"}, "Alineación"),
 ])
 def test_errores_claros(cliente, cambio, texto):
     r = cliente.post("/api/comprobar", json={**PROYECTO, **cambio})
@@ -145,3 +146,27 @@ def test_v05_unidas_placa_y_division(cliente):
     m = cliente.post("/api/modelo", json={**PROYECTO, "letters": "W", "height": "250"}).json()
     roles = {(p["parte"], p["rol"]) for p in m["piezas"]}
     assert ("AB", "empalme") in roles and ("A", "cuerpo") in roles and ("B", "frente") in roles
+
+
+def test_v06_lineas_camas_y_3mf(cliente):
+    datos = {**PROYECTO, "letters": "LU\nCY", "height": "80", "alineacion": "izquierda", "interlineado": "1.3"}
+    d = cliente.post("/api/comprobar", json=datos).json()
+    assert len(d["piezas"]) == 8 and all(p["cama"] >= 1 for p in d["piezas"])
+    assert {c["material"] for c in d["camas"]} == {"opaco", "difusor"}
+    r = cliente.post("/api/letrero", json=datos)
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    assert 'filename="LU-CY-frontal.zip"' in r.headers["content-disposition"]
+    nombres = z.namelist()
+    assert "LU-CY-frontal/contornos.dxf" in nombres
+    assert any(n.startswith("LU-CY-frontal/camas/") and n.endswith(".3mf") for n in nombres)
+
+
+def test_v06_visor_camas_y_division_horizontal(cliente):
+    import numpy as np
+    m = cliente.post("/api/modelo", json={**PROYECTO, "letters": "I", "height": "450"}).json()
+    roles = {(p["parte"], p["rol"]) for p in m["piezas"]}
+    assert ("12", "empalme") in roles and ("2", "frente") in roles
+    for p in m["piezas"]:
+        M = np.array(p["m_cama"]).reshape(4, 4).T
+        assert M.shape == (4, 4) and p["cama"] >= 1
+        assert abs(abs(np.linalg.det(M[:3, :3])) - 1) < 1e-4  # giro (o reflejo del frente), sin escala

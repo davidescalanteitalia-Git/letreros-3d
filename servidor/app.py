@@ -130,15 +130,22 @@ def _zip(proyecto: lm.Proyecto, nombre: str) -> bytes:
         return Path(ruta).read_bytes()
 
 
+def _cama_de(proyecto: lm.Proyecto) -> dict:
+    return {id(col.pieza): (c, col) for c in proyecto.camas() for col in c.colocaciones}
+
+
 def _informe(proyecto: lm.Proyecto) -> dict:
+    camas = _cama_de(proyecto)
     return {
         "resumen": proyecto.resumen(),
         "avisos": proyecto.avisos,
         "piezas": [
-            {"archivo": p.archivo, "rol": p.rol, "caracter": p.letra.caracter,
+            {"archivo": p.archivo, "rol": p.rol, "caracter": p.letra.caracter, "cama": camas[id(p)][0].numero,
              "medidas_mm": [round(float(v), 1) for v in p.malla.extents], "peso_g": round(p.peso_g, 1)}
             for p in proyecto.piezas
         ],
+        "camas": [{"numero": c.numero, "material": c.material, "piezas": len(c.colocaciones),
+                   "peso_g": round(c.peso_g, 1), "archivo": c.archivo} for c in proyecto.camas()],
         "peso_g": round(proyecto.peso_g, 1),
         "metros_led": round(proyecto.metros_led, 2),
         "estructura": proyecto.diseno.estructura,
@@ -157,20 +164,29 @@ def _modelo(datos: dict) -> dict:
     if sum(len(p.malla.faces) for p in proyecto.piezas) > TRIANGULOS_VISOR_MAX:
         raise lm.ErrorEntrada("Demasiado detalle para el visor; reduce el texto.")
     piezas, minimo, maximo = [], np.full(3, np.inf), np.full(3, -np.inf)
+    camas = _cama_de(proyecto)
     for p in proyecto.piezas:
         v = np.asarray(p.malla.vertices, dtype=np.float32).copy()
         f = np.asarray(p.malla.faces, dtype=np.uint32).copy()
+        montaje = np.eye(4)  # de la pose de impresión a la pose montada
         if (d.estructura, p.rol) in _VOLTEAR:
             v[:, 2] = d.profundidad - v[:, 2]
             f = f[:, [0, 2, 1]].copy()
+            montaje[2, 2], montaje[2, 3] = -1.0, d.profundidad
         elif p.rol == "empalme":  # va pegado por dentro: sobre el fondo, o detrás del frente en halo
-            v[:, 2] += (d.profundidad - d.frente - v[:, 2].max()) if d.estructura == "halo" else d.fondo
+            dz = (d.profundidad - d.frente - float(v[:, 2].max())) if d.estructura == "halo" else d.fondo
+            v[:, 2] += dz
+            montaje[2, 3] = dz
         elif p.rol == "placa":  # detrás de las letras
             v[:, 2] -= d.placa_grosor
+            montaje[2, 3] = -d.placa_grosor
+        cama, col = camas[id(p)]
+        a_cama = col.matriz @ np.linalg.inv(montaje)  # de la pose montada a su sitio en la cama
         minimo, maximo = np.minimum(minimo, v.min(0)), np.maximum(maximo, v.max(0))
         piezas.append({
             "archivo": p.archivo, "rol": p.rol, "caracter": p.letra.caracter, "parte": p.parte,
-            "unidad": p.letra.indice, "v": base64.b64encode(v.tobytes()).decode(), "i": base64.b64encode(f.tobytes()).decode(),
+            "unidad": p.letra.indice, "cama": cama.numero, "m_cama": [round(float(x), 5) for x in a_cama.T.ravel()],
+            "v": base64.b64encode(v.tobytes()).decode(), "i": base64.b64encode(f.tobytes()).decode(),
         })
     return {
         "estructura": d.estructura, "profundidad": d.profundidad, "separacion": d.separacion,

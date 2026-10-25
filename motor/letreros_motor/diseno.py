@@ -55,6 +55,8 @@ class Diseno:
     dividir: bool = True           # dividir automáticamente lo que no cabe en la cama
     precio_kg: float = 25.0        # €/kg de filamento (presupuesto)
     precio_led_m: float = 0.0      # €/m de tira LED (presupuesto)
+    interlineado: float = 1.4      # varias líneas: distancia entre bases = interlineado × altura
+    alineacion: str = "centro"     # varias líneas: izquierda | centro | derecha
     fuente: str = FUENTE_POR_DEFECTO
     tolerancia: float = 0.05       # desviación máx. de las curvas
     cama: tuple[float, float, float] = field(default=CAMA_A2L_MM)
@@ -140,11 +142,17 @@ def validar(d: Diseno) -> tuple[Diseno, list[str]]:
     from .conjunto import CONJUNTOS
     if d.conjunto not in CONJUNTOS:
         raise ErrorEntrada(f"Conjunto '{d.conjunto}' desconocido. Opciones: {', '.join(CONJUNTOS)}.")
+    interlineado = _num("interlineado", d.interlineado)
+    if not 1.0 <= interlineado <= 3.0:
+        raise ErrorEntrada(f"Interlineado entre 1 y 3 veces la altura (recibido {interlineado:g}).")
+    from .texto import ALINEACIONES
+    if d.alineacion not in ALINEACIONES:
+        raise ErrorEntrada(f"Alineación '{d.alineacion}' desconocida. Opciones: {', '.join(ALINEACIONES)}.")
     if d.placa_forma not in ("rect", "silueta"):
         raise ErrorEntrada("La forma de la placa es 'rect' o 'silueta'.")
     from .fuentes import obtener_fuente
     obtener_fuente(d.fuente)
-    d = replace(d, tira_led=tira, cable=cable, drenaje=bool(d.drenaje), dividir=bool(d.dividir),
+    d = replace(d, interlineado=interlineado, tira_led=tira, cable=cable, drenaje=bool(d.drenaje), dividir=bool(d.dividir),
                 placa_agujero=agujero, **cambios)
     if d.conjunto == "placa" and d.estructura == "halo":
         raise ErrorEntrada("La placa común no se combina con halo: el halo va separado de la pared.")
