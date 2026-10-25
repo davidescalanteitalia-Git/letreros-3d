@@ -48,4 +48,4 @@ Orden: (1) este PR, una letra maciza; (2) caja hueca = contorno − offset de pa
 ## 5. Pendiente de verificación humana
 - Abrir `A.stl` en Bambu Studio: medidas 134,57 × 120,00 × 35,00 mm, sin aviso de reparación.
 - Imprimir una muestra pequeña (`--altura 40 --profundidad 5`) y medirla con calibre.
-- Confirmar si la versión publicada en letreros.d4digitalstudio.it es la v0.3 (no se ha comprobado).
+- **Comprobado el 25-10-2026:** letreros.d4digitalstudio.it muestra "Taller v0.2" (4 estructuras, sin selector de fuentes). `main` ya tiene la v0.3: Coolify no se ha vuelto a desplegar. El propietario decide cuándo redesplegar.
