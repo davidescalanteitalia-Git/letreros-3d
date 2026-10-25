@@ -3,7 +3,9 @@
 Aplicación propia para diseño y futura fabricación de letreros corpóreos impresos en 3D.
 
 ## Estado actual
-**Prototipo visual v0.1:** editor web en español con texto, tipo de iluminación simulado, medidas y material. **Todavía NO genera STL ni geometría CAD.**
+**Editor web v0.3 (`index.html`):** prototipo visual en español con texto, 10 fuentes, tipos de letrero simulados, medidas, guardar/abrir JSON. La web **no genera STL**.
+
+**Motor de geometría M1 (`motor/`):** prototipo local en Python que genera el STL auténtico y validado de UNA letra maciza (Montserrat Bold, OFL). Sin caja hueca, LED ni división. Ver `motor/README.md` y `docs/05_INFORME_AUDITORIA.md`.
 
 ## Abrir localmente
 Abre `index.html` en tu navegador para ver la demostración.

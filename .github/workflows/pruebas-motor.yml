@@ -1,0 +1,31 @@
+name: Pruebas del motor STL
+on:
+  pull_request:
+    paths: ["motor/**", ".github/workflows/pruebas-motor.yml"]
+  push:
+    branches: [main]
+    paths: ["motor/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: motor
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -r requirements.txt
+      - run: python -m pytest -q
+      - name: STL de muestra
+        run: python -m letreros_motor A --altura 120 --profundidad 35 -o salida/A.stl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stl-muestra
+          path: motor/salida/A.stl
