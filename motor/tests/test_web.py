@@ -16,7 +16,8 @@ def test_traduccion_basica():
     assert d.cama == (320, 310, 325)
 
 
-@pytest.mark.parametrize("estilo, estructura", [("front", "frontal"), ("halo", "halo"), ("box", "caja"), ("solid", "maciza")])
+@pytest.mark.parametrize("estilo, estructura", [("front", "frontal"), ("halo", "halo"), ("box", "caja"), ("solid", "maciza"),
+                                              ("frontsolid", "lateral"), ("dual", "doble"), ("neon", "neon"), ("lightbox", "caja_luz")])
 def test_estilos(estilo, estructura):
     assert diseno_desde_web({**BASE, "style": estilo}).estructura == estructura
 
@@ -27,7 +28,7 @@ def test_campos_extra_y_coma_decimal():
 
 
 @pytest.mark.parametrize("cambio", [
-    {"schema_version": 3}, {"style": "neon"}, {"style": "dual"}, {"style": "x"}, {"font": "Comic Sans"}, {"layout": "zigzag"},
+    {"schema_version": 3}, {"style": "x"}, {"font": "Comic Sans"}, {"layout": "zigzag"},
     {"height": "doce"}, {"bedx": "10", "bedy": "10"}, {"letters": {"a": 1}},
 ])
 def test_rechazos(cambio):

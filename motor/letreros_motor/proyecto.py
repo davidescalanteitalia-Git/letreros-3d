@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import json
+import math
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import trimesh
@@ -17,6 +18,15 @@ from .fuentes import obtener_fuente
 from .texto import maquetar
 
 INSTRUCCIONES = {
+    ("lateral", "cuerpo"): "Fondo sobre la cama, paredes hacia arriba. PETG translúcido (la luz sale por los laterales). Sin soportes.",
+    ("lateral", "frente"): "Cara visible sobre la cama, faldón hacia arriba. Color opaco.",
+    ("doble", "cuerpo"): "Anillo de paredes, apoyado en cualquiera de sus bordes. Color opaco. Sin soportes.",
+    ("doble", "frente"): "Cara visible sobre la cama, faldón hacia arriba. PETG translúcido.",
+    ("doble", "trasera"): "Plana sobre la cama, faldón hacia arriba. PETG translúcido; agujeros para separadores metálicos.",
+    ("neon", "base"): "Plana sobre la cama, canal hacia arriba. Color opaco (negro o blanco según la pared). Sin soportes.",
+    ("caja_luz", "cuerpo"): "Fondo sobre la cama, paredes hacia arriba. Opaco. Los colgadores y las guías no necesitan soportes.",
+    ("caja_luz", "difusor"): "Plana sobre la cama, letras en relieve hacia arriba. PETG translúcido blanco o natural.",
+    ("caja_luz", "mascara"): "Plana sobre la cama. Color opaco. Los ojos de las letras (O, A, B…) se pegan sobre el difusor.",
     ("maciza", "cuerpo"): "Cara visible hacia arriba. Relleno 10-15 %.",
     ("caja", "cuerpo"): "Fondo sobre la cama, paredes hacia arriba. Sin soportes.",
     ("frontal", "cuerpo"): "Fondo sobre la cama, paredes hacia arriba. Color opaco. Sin soportes.",
@@ -24,7 +34,7 @@ INSTRUCCIONES = {
     ("halo", "cuerpo"): "Cara visible sobre la cama, separadores hacia arriba. Color opaco. Sin soportes.",
 }
 INSTRUCCIONES_ROL = {
-    "empalme": "Plana sobre la cama. Se pega por dentro cruzando la junta de las dos partes (fondo o frente).",
+    "empalme": "Plana sobre la cama (en «doble», de pie). Se pega por dentro cruzando la junta de las dos partes.",
     "placa": "Plana, ranuras de posición hacia arriba. Relleno 15-20 %. Pega cada letra sobre su silueta grabada.",
 }
 
@@ -66,7 +76,8 @@ class Proyecto:
         d = self.diseno
         material = self.peso_g / 1000 * d.precio_kg
         led = self.metros_led * d.precio_led_m
-        return {"material_eur": round(material, 2), "led_eur": round(led, 2), "total_eur": round(material + led, 2)}
+        material, led = round(material, 2), round(led, 2)
+        return {"material_eur": material, "led_eur": led, "total_eur": round(material + led, 2)}
 
     def medidas(self) -> tuple[float, float, float, float]:
         fs = [r.letra.forma for r in self.letras]
@@ -84,9 +95,17 @@ class Proyecto:
             f"Piezas: {len(self.piezas)} en {len(self.camas())} cama(s) de impresión · material ≈ {self.peso_g:.0f} g de PETG (sólido al 100 %; el laminador dará el dato real)",
         ]
         if self.metros_led:
-            led = f"Tira LED {d.ancho_tira:g} mm: ≈ {self.metros_led:.2f} m (estimación por perímetro interior / 2)"
-            if d.w_por_metro:
-                led += f" · consumo nominal ≈ {self.metros_led * d.w_por_metro:.1f} W"
+            if d.estructura == "neon":
+                led = f"Neón flex {d.neon_ancho:g} × {d.neon_alto:g} mm: ≈ {self.metros_led:.2f} m de canal"
+            else:
+                from .estructuras import separacion_filas
+                led = (f"Tira LED {d.ancho_tira:g} mm: ≈ {self.metros_led:.2f} m"
+                       + (f" (filas cada ≤ {separacion_filas(d):.0f} mm)" if d.estructura != "doble" else " (pegada a la pared interior)"))
+            e = plan_electrico(self)
+            if "vatios" in e:
+                led += (f" · {e['vatios']:.1f} W a {d.tension:g} V = {e['amperios']:.2f} A"
+                        + (f" · fuente ≥ {e['fuente_w']} W" if e["fuente_w"] else " · varias fuentes")
+                        + (f" · {e['alimentaciones']} puntos de alimentación" if e["alimentaciones"] > 1 else ""))
             lineas.append(led)
         c = self.costes()
         if d.precio_kg or d.precio_led_m:
@@ -102,9 +121,17 @@ def generar_letrero(diseno: Diseno) -> Proyecto:
     letras = maquetar(d.texto, d.fuente, d.altura, d.espaciado, d.tolerancia, d.interlineado, d.alineacion)
     unidades, avisos_conjunto = agrupar(letras, d)
     avisos += avisos_conjunto
-    resultados = [construir_letra(u, d) for u in unidades]
-    if d.conjunto == "placa":
+    if d.estructura == "caja_luz":
+        from .caja_luz import construir_caja_luz
+        resultados = [construir_caja_luz(unidades, d)]
+    elif d.estructura == "neon" and d.conjunto == "placa":
+        # Placa de neón: las letras no son piezas; la placa lleva sus canales.
+        resultados = [_datos_neon(u, d) for u in unidades]
         resultados.append(placa(unidades, resultados, d))
+    else:
+        resultados = [construir_letra(u, d) for u in unidades]
+        if d.conjunto == "placa":
+            resultados.append(placa(unidades, resultados, d))
     vistos = set(avisos)
     for r in resultados:
         for a in r.avisos:
@@ -115,6 +142,35 @@ def generar_letrero(diseno: Diseno) -> Proyecto:
 
 
 ARCHIVOS_FIJOS = {"ficha.json", "LEEME.txt", "plantilla-montaje.svg", "contornos.dxf", "camas"}
+
+
+def _datos_neon(letra, d: Diseno) -> ResultadoLetra:
+    """Metros, punto de cable y tubo de vista de una letra de neón que va en placa común."""
+    res = construir_letra(letra, replace(d, conjunto="individual", dividir=True, fijacion="ninguna"))
+    res.piezas = []
+    return res
+
+
+def plan_electrico(proyecto: "Proyecto") -> dict:
+    """Consumo y fuente a partir de los metros y de los datos de TU tira (W/m y tensión).
+    Sin W/m no se inventa consumo: solo metros. Fuente con un 20 % de margen, a tamaño comercial."""
+    d = proyecto.diseno
+    metros = proyecto.metros_led
+    res = {"metros": round(metros, 2), "tension_v": d.tension}
+    if not metros or not d.w_por_metro:
+        return res
+    vatios = metros * d.w_por_metro
+    necesaria = vatios * 1.2
+    fuente = next((f for f in FUENTES_COMERCIALES_W if f >= necesaria), None)
+    tramo_max = TRAMO_MAX_M.get(d.tension, 5.0)
+    res.update({"vatios": round(vatios, 1), "amperios": round(vatios / d.tension, 2),
+                "fuente_w": fuente, "alimentaciones": max(1, math.ceil(metros / tramo_max)),
+                "tramo_max_m": tramo_max})
+    return res
+
+
+FUENTES_COMERCIALES_W = (15, 25, 35, 50, 60, 75, 100, 150, 200, 240, 320, 480, 600)
+TRAMO_MAX_M = {5.0: 2.0, 12.0: 5.0, 24.0: 10.0}  # longitud orientativa por punto de alimentación
 
 
 def _medidas(malla: trimesh.Trimesh) -> list[float]:
@@ -144,6 +200,7 @@ def exportar(proyecto: Proyecto, carpeta: str | Path, comprimir: bool = False) -
             "metros_led": round(proyecto.metros_led, 3),
             "consumo_w": round(proyecto.metros_led * d.w_por_metro, 1) if d.w_por_metro else None,
             "costes": proyecto.costes(),
+            "electrico": plan_electrico(proyecto),
         },
         "montaje": [
             {"orden": r.letra.indice, "caracter": r.letra.caracter,
@@ -151,14 +208,17 @@ def exportar(proyecto: Proyecto, carpeta: str | Path, comprimir: bool = False) -
              "ancho_mm": round(r.letra.forma.bounds[2] - r.letra.forma.bounds[0], 2),
              "alto_mm": round(r.letra.forma.bounds[3] - r.letra.forma.bounds[1], 2),
              "hueca": r.hueca, "cortes_x_mm": [round(x, 1) for x in r.cortes],
-             "cortes_y_mm": [round(y, 1) for y in r.cortes_y], "linea": r.letra.linea}
+             "cortes_y_mm": [round(y, 1) for y in r.cortes_y], "linea": r.letra.linea,
+             "led": r.led, "fijaciones": [[round(x, 1), round(y, 1)] for x, y in r.puntos_fijacion],
+             "separadores": [[round(x, 1), round(y, 1)] for x, y in r.puntos_separadores],
+             "cable": [[round(x, 1), round(y, 1)] for x, y in r.puntos_cable]}
             for r in proyecto.letras
         ],
         "piezas": [
             {"archivo": p.archivo, "caracter": p.letra.caracter, "rol": p.rol,
              "medidas_mm": _medidas(p.malla), "volumen_cm3": round(p.volumen_cm3, 2),
              "peso_g": round(p.peso_g, 1), "triangulos": int(len(p.malla.faces)),
-             "parte": p.parte, "impresion": instrucciones(d.estructura, p.rol)}
+             "parte": p.parte, "material": p.material, "impresion": instrucciones(d.estructura, p.rol)}
             for p in proyecto.piezas
         ],
         "camas": [
@@ -222,6 +282,36 @@ def _leeme(proyecto: Proyecto, ficha: dict) -> str:
         partes.append("  Uniones: colas de milano en macizas; en huecas, placa de empalme con el nombre de las dos partes (AB, 12, A1A2…).")
     partes += ["", "PLANTILLA: plantilla-montaje.svg está a escala 1:1 (mm). Imprímela al 100 % para marcar en la pared "
                "la posición de cada pieza, los agujeros de cable (+) y los separadores (o)."]
+    e = ficha["resumen"]["electrico"]
+    if e.get("metros"):
+        partes += ["", "LUZ E INSTALACIÓN (orientativo: confirma con la ficha de tu tira y de la fuente)"]
+        for m in ficha["montaje"]:
+            led = m.get("led") or {}
+            if led.get("metros"):
+                filas = f"{led['filas']} fila(s)" + (f" cada {led['separacion_mm']:.0f} mm" if led.get("separacion_mm") else "")
+                partes.append(f"  «{m['caracter']}»: {led['metros']:.2f} m · {filas} · {led.get('montaje', '')}")
+        partes.append(f"  Total: {e['metros']:.2f} m a {e['tension_v']:g} V.")
+        if "vatios" in e:
+            partes.append(f"  Consumo {e['vatios']:.1f} W → {e['amperios']:.2f} A. Fuente recomendada ≥ "
+                          f"{e['fuente_w'] or 'varias'} W (20 % de margen). Alimenta como mucho {e['tramo_max_m']:g} m por punto "
+                          f"({e['alimentaciones']} punto(s)) para evitar caída de tensión.")
+        else:
+            partes.append("  Indica los W/m de tu tira para calcular consumo, amperios y fuente.")
+        partes.append("  Exterior: fuente IP67, conexiones selladas y drenaje abajo.")
+    if d.fijacion != "ninguna" or d.estructura in ("doble", "caja_luz", "halo"):
+        partes += ["", "FIJACIÓN"]
+        partes.append({"insertos": "  Torretas para inserto térmico M4 (Ø5,6 × 8): mételo con el soldador a 220-240 °C. "
+                                   "Atornilla a la pared con varilla M4 o tornillo + taco.",
+                       "pasantes": "  Agujeros Ø4,5 avellanados por dentro: tornillo de cabeza avellanada 4 mm + taco.",
+                       "ninguna": ""}[d.fijacion] if d.estructura not in ("doble", "caja_luz", "halo") else
+                      {"doble": f"  Trasera con agujeros Ø{d.tornillo:g} para separadores metálicos (inox) a pared.",
+                       "caja_luz": "  Dos colgadores tipo ojo de cerradura: tornillos a pared con la cabeza 5 mm fuera, "
+                                   "a la distancia de la plantilla; cuelga la caja y bájala.",
+                       "halo": f"  Separadores impresos de {d.separacion:g} mm con agujero Ø{d.tornillo:g}."}[d.estructura])
+        partes.append("  Las posiciones están en plantilla-montaje.svg (o = fijación/separador, + = cable).")
+    if d.estructura == "neon":
+        partes += ["", f"NEÓN: canal de {d.neon_ancho:g} mm siguiendo el contorno. Respeta el radio mínimo de curvatura de tu "
+                   "neón en las esquinas; si no entra, calienta el neón suavemente o usa uno más fino. Sella con silicona neutra."]
     partes += ["", "CONTORNOS: contornos.dxf (mm, 1:1, en posición de montaje). Capa LETRAS para cortar a láser "
                "el frente de metacrilato (estructura caja) o vinilo; CORTES y CABLE como referencia."]
     if d.estructura == "frontal":
@@ -267,6 +357,10 @@ def plantilla_svg(proyecto: Proyecto) -> str:
         for x, y in r.puntos_cable:
             a, b = pt(x, y).split(",")
             el.append(f'<path d="M{float(a) - 4:.2f},{b} h8 M{a},{float(b) - 4:.2f} v8" stroke="#000" stroke-width="0.4"/>')
+        for x, y in r.puntos_fijacion:
+            a, b = pt(x, y).split(",")
+            el.append(f'<circle cx="{a}" cy="{b}" r="3" fill="none" stroke="#7a3db8" stroke-width="0.4"/>'
+                      f'<path d="M{float(a) - 5:.2f},{b} h10 M{a},{float(b) - 5:.2f} v10" stroke="#7a3db8" stroke-width="0.2"/>')
         for x, y in r.puntos_separadores:
             a, b = pt(x, y).split(",")
             el.append(f'<circle cx="{a}" cy="{b}" r="{proyecto.diseno.tornillo / 2:.2f}" fill="none" stroke="#000" stroke-width="0.4"/>'
@@ -276,6 +370,6 @@ def plantilla_svg(proyecto: Proyecto) -> str:
             a, b = pt(c.x, c.y).split(",")
             el.append(f'<text x="{a}" y="{b}" font-size="6" text-anchor="middle" fill="#1f4e8c">{escape(r.letra.codigo)}</text>')
     el.append(f'<text x="{m / 2:.1f}" y="{alto - 4:.1f}" font-size="4" fill="#555">Escala 1:1 · medidas en mm · '
-              f'{ancho - 2 * m:.0f} × {alto - 2 * m:.0f} mm · + cable · o separador · -- corte</text>')
+              f'{ancho - 2 * m:.0f} × {alto - 2 * m:.0f} mm · + cable · o separador · o violeta fijación · -- corte</text>')
     el.append("</svg>")
     return "\n".join(el) + "\n"

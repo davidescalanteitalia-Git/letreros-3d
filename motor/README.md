@@ -38,6 +38,10 @@ Añade `--zip` para obtener además `salida\LUCY.zip`.
 | `caja` | cuerpo (fondo + paredes, frente abierto) | Neón flex, acrílico pegado o decorativa. |
 | `frontal` | cuerpo (fondo + paredes) + **frente impreso a presión** | Frontal iluminada: tira LED en el fondo, frente en PETG blanco/natural. |
 | `halo` | cuerpo (frente cerrado + paredes, trasera abierta) con **separadores** | Retroiluminada: la luz sale hacia la pared. |
+| `lateral` | cuerpo **translúcido** + frente **opaco** a presión | La luz sale por los laterales de la letra. |
+| `doble` | anillo de paredes + frente y **trasera translúcidos** a presión | Luz delante y detrás; trasera con agujeros para separadores metálicos (`--tornillo`). |
+| `neon` | **base** con canal que sigue el contorno (`--neon-ancho`, `--neon-alto`, `--neon-borde`) | Neón flex. Con `--conjunto placa` sale una placa con un canal por letra. La profundidad es el grosor de la base (4–30). |
+| `caja_luz` | **cuerpo** (galce, guías de tira, colgadores ojo de cerradura, cable) + **difusor** con letras en relieve + **máscara** calada | Caja de luz. Contorno con `--placa-forma` y `--placa-margen`; `--mascara`, `--repisa`. |
 
 ### Parámetros (todos en mm)
 | Opción | Def. | Rango | Qué es |
@@ -58,6 +62,16 @@ Añade `--zip` para obtener además `salida\LUCY.zip`.
 | `--drenaje` | no | — | Agujero Ø3 en la parte baja del fondo (exterior). |
 | `--separacion` | 20 | 5–80 | Halo: distancia de la letra a la pared. |
 | `--tornillo` | 3,2 | 2–6 | Halo: Ø del agujero de cada separador. |
+
+### Luz, instalación y fijación (v0.7)
+| Opción | Def. | Qué es |
+|---|---|---|
+| `--fijacion` | ninguna | `insertos`: torretas para inserto térmico M4 (Ø5,6 × 8) · `pasantes`: Ø4,5 avellanado por dentro. En macizas: agujeros ciegos traseros. |
+| `--tension` | 12 | V de la tira (5, 12, 24): amperios y longitud máxima por punto de alimentación. |
+| `--paso-led` | 0 | Separación entre filas de LED; 0 = la distancia de la tira a la cara (regla de luz uniforme). |
+| `--w-por-metro` | — | Con este dato el LEEME calcula vatios, amperios y fuente recomendada (+20 %). Sin él no se inventa consumo. |
+
+El LEEME incluye la sección **LUZ E INSTALACIÓN** (metros y filas por letra, consumo, fuente) y **FIJACIÓN**; la plantilla marca las fijaciones en violeta.
 
 ### Varias líneas (v0.6)
 Escribe `\n` donde quieras el salto: `python -m letreros_motor letrero "LUCY\nHAIR" --alineacion izquierda --interlineado 1.3 -o salida\LUCY`.

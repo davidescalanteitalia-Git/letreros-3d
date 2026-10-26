@@ -63,9 +63,13 @@ def unir(solidos) -> m3d.Manifold:
 
 
 def a_trimesh(solido: m3d.Manifold) -> trimesh.Trimesh:
+    """Malla de trimesh. manifold3d ya entrega un sólido cerrado; si al fundir vértices
+    coincidentes aparece un punto de contacto (dos zonas que se tocan en un vértice),
+    se conserva la topología de manifold3d, que sigue siendo cerrada y orientable."""
     malla = solido.to_mesh()
-    return trimesh.Trimesh(
-        vertices=np.asarray(malla.vert_properties)[:, :3].astype(float),
-        faces=np.asarray(malla.tri_verts).astype(np.int64),
-        process=True,
-    )
+    v = np.asarray(malla.vert_properties)[:, :3].astype(float)
+    f = np.asarray(malla.tri_verts).astype(np.int64)
+    fundida = trimesh.Trimesh(vertices=v, faces=f, process=True)
+    if fundida.is_watertight or len(f) == 0:
+        return fundida
+    return trimesh.Trimesh(vertices=v, faces=f, process=False)

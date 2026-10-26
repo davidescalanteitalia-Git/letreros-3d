@@ -16,13 +16,12 @@ ESTILO_A_ESTRUCTURA = {
     "halo": "halo",
     "box": "caja",
     "solid": "maciza",
-    "neon": None,
-    "dual": None,
-    "frontsolid": None,
+    "neon": "neon",
+    "dual": "doble",
+    "frontsolid": "lateral",
+    "lightbox": "caja_luz",
 }
-NOMBRES_ESTILO = {
-    "neon": "Neón flex", "dual": "Doble iluminación", "frontsolid": "Frente opaco con cuerpo iluminado",
-}
+NOMBRES_ESTILO: dict[str, str] = {}
 # Fuentes del editor con contornos verificados para fabricar (las 10 del selector).
 from .fuentes import POR_FAMILIA_WEB as FUENTES_WEB  # noqa: E402
 
@@ -36,6 +35,8 @@ CAMPOS_EXTRA = {
     "cable": "cable", "separacion": "separacion", "tornillo": "tornillo",
     "puente": "puente", "barra": "barra", "placa_margen": "placa_margen", "placa_grosor": "placa_grosor",
     "placa_agujero": "placa_agujero", "precio_kg": "precio_kg", "precio_led_m": "precio_led_m",
+    "paso_led": "paso_led", "neon_ancho": "neon_ancho", "neon_alto": "neon_alto", "neon_borde": "neon_borde",
+    "mascara": "mascara", "repisa": "repisa", "tension": "tension",
 }
 LIMITE_TEXTO_CAMPO = 100
 
@@ -103,6 +104,9 @@ def diseno_desde_web(datos: dict) -> Diseno:
     alineacion = _texto(datos, "alineacion", "centro")
     if alineacion:
         kwargs["alineacion"] = alineacion
+    fijacion = _texto(datos, "fijacion", "ninguna")
+    if fijacion:
+        kwargs["fijacion"] = fijacion
     forma_placa = _texto(datos, "placa_forma", "rect")
     if forma_placa:
         kwargs["placa_forma"] = forma_placa

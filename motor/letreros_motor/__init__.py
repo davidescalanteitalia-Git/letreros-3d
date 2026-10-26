@@ -7,8 +7,10 @@ v0.3: 10 fuentes OFL, maquetación HarfBuzz, letras unidas/placa común, divisi�
       plantilla de montaje SVG 1:1 y presupuesto.
 v0.4: varias líneas (alineación, interlineado), división horizontal en rejilla, reparto en
       camas por material con 3MF para Bambu Studio y contornos DXF 1:1.
+v0.5: estructuras lateral, doble, neón flex y caja de luz; plan de LED por filas, plan
+      eléctrico (W, A, fuente) y fijaciones (insertos M4, pasantes, colgadores).
 """
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
 from .diseno import ESTRUCTURAS, Diseno, validar  # noqa: E402
 from .errores import ErrorEntrada, ErrorGeometria  # noqa: E402

@@ -17,7 +17,15 @@ ESTRUCTURAS = {
     "caja": "Caja hueca con fondo y frente abierto (neón, acrílico pegado o decorativa).",
     "frontal": "Frontal iluminada: cuerpo con fondo + frente impreso translúcido que encaja a presión.",
     "halo": "Retroiluminada (halo): frente cerrado, trasera abierta y separadores para tornillo a pared.",
+    "lateral": "Frente opaco y cuerpo translúcido: la luz sale por los laterales de la letra.",
+    "doble": "Doble iluminación: frente y trasera translúcidos a presión, agujeros para separadores metálicos.",
+    "neon": "Neón flex: base con canal que sigue el contorno de la letra (o placa común con canales).",
+    "caja_luz": "Caja de luz: caja con guías de tira LED, máscara opaca calada y difusor con letras en relieve.",
 }
+ILUMINADAS = ("frontal", "halo", "lateral", "doble", "caja_luz", "caja")
+FIJACIONES = {"ninguna": "Sin fijación (adhesivo o placa)", "insertos": "Torretas para inserto roscado M4 (Ø5,6 × 8)",
+              "pasantes": "Agujeros pasantes Ø4,5 avellanados para tornillo y taco"}
+TENSIONES = (5.0, 12.0, 24.0)
 
 BOQUILLA_MM = 0.4
 # Bambu Lab A2L: 330 × 320 × 325 mm nominales, margen hipotético de 5 mm por lado en XY.
@@ -55,6 +63,14 @@ class Diseno:
     dividir: bool = True           # dividir automáticamente lo que no cabe en la cama
     precio_kg: float = 25.0        # €/kg de filamento (presupuesto)
     precio_led_m: float = 0.0      # €/m de tira LED (presupuesto)
+    fijacion: str = "ninguna"      # ninguna | insertos | pasantes
+    tension: float = 12.0          # V de la tira (5, 12, 24): amperios y fuente recomendada
+    paso_led: float = 0.0          # separación entre filas de LED (0 = automática: ≈ distancia a la cara)
+    neon_ancho: float = 6.0        # neón flex: ancho del perfil
+    neon_alto: float = 12.0        # neón flex: alto del perfil
+    neon_borde: float = 6.0        # neón: base alrededor del canal
+    mascara: float = 1.2           # caja de luz: grosor de la máscara opaca (= relieve de las letras del difusor)
+    repisa: float = 3.0            # caja de luz: galce donde apoya la cara
     interlineado: float = 1.4      # varias líneas: distancia entre bases = interlineado × altura
     alineacion: str = "centro"     # varias líneas: izquierda | centro | derecha
     fuente: str = FUENTE_POR_DEFECTO
@@ -64,7 +80,7 @@ class Diseno:
     @property
     def ancho_tira(self) -> float:
         if self.tira_led is None:
-            return 8.0 if self.estructura in ("frontal", "halo") else 0.0
+            return 8.0 if self.estructura in ("frontal", "halo", "lateral", "doble", "caja_luz") else 0.0
         return self.tira_led
 
     def como_dict(self) -> dict:
@@ -95,6 +111,12 @@ _RANGOS = {
     "placa_grosor": (2, 10),
     "precio_kg": (0, 500),
     "precio_led_m": (0, 500),
+    "paso_led": (0, 150),
+    "neon_ancho": (4, 20),
+    "neon_alto": (4, 25),
+    "neon_borde": (2, 30),
+    "mascara": (0.8, 4),
+    "repisa": (1.5, 10),
 }
 
 _NOMBRES = {
@@ -105,6 +127,8 @@ _NOMBRES = {
     "tolerancia": "Tolerancia de curvas", "puente": "Puente entre letras", "barra": "Barra inferior",
     "placa_margen": "Margen de la placa", "placa_grosor": "Grosor de la placa",
     "precio_kg": "Precio del filamento", "precio_led_m": "Precio de la tira LED",
+    "paso_led": "Separación entre filas de LED", "neon_ancho": "Ancho del neón", "neon_alto": "Alto del neón",
+    "neon_borde": "Borde de la base del neón", "mascara": "Grosor de la máscara", "repisa": "Galce de la caja",
 }
 
 
@@ -148,19 +172,26 @@ def validar(d: Diseno) -> tuple[Diseno, list[str]]:
     from .texto import ALINEACIONES
     if d.alineacion not in ALINEACIONES:
         raise ErrorEntrada(f"Alineación '{d.alineacion}' desconocida. Opciones: {', '.join(ALINEACIONES)}.")
+    if d.fijacion not in FIJACIONES:
+        raise ErrorEntrada(f"Fijación '{d.fijacion}' desconocida. Opciones: {', '.join(FIJACIONES)}.")
+    tension = _num("tension", d.tension)
+    if tension not in TENSIONES:
+        raise ErrorEntrada("Tensión de la tira: 5, 12 o 24 V.")
     if d.placa_forma not in ("rect", "silueta"):
         raise ErrorEntrada("La forma de la placa es 'rect' o 'silueta'.")
     from .fuentes import obtener_fuente
     obtener_fuente(d.fuente)
-    d = replace(d, interlineado=interlineado, tira_led=tira, cable=cable, drenaje=bool(d.drenaje), dividir=bool(d.dividir),
+    d = replace(d, tension=tension, interlineado=interlineado, tira_led=tira, cable=cable, drenaje=bool(d.drenaje), dividir=bool(d.dividir),
                 placa_agujero=agujero, **cambios)
-    if d.conjunto == "placa" and d.estructura == "halo":
-        raise ErrorEntrada("La placa común no se combina con halo: el halo va separado de la pared.")
+    if d.conjunto == "placa" and d.estructura in ("halo", "doble"):
+        raise ErrorEntrada("La placa común no se combina con halo ni doble: van separados de la pared.")
     if d.barra > d.altura * 0.6:
         raise ErrorEntrada(f"La barra inferior ({d.barra:g} mm) no debe superar el 60 % de la altura.")
 
     p, avisos = d.profundidad, []
-    if d.estructura == "frontal":
+    if d.estructura == "caja_luz" and d.conjunto != "individual":
+        avisos.append("Caja de luz: la construcción del conjunto no se usa (todas las letras van en la cara de la caja).")
+    if d.estructura in ("frontal", "lateral"):
         minimo = d.fondo + d.frente + d.encaje + 2
         if p < minimo:
             raise ErrorEntrada(
@@ -169,19 +200,34 @@ def validar(d: Diseno) -> tuple[Diseno, list[str]]:
             )
         if p - d.fondo - d.frente < 15:
             avisos.append("Menos de 15 mm entre fondo y frente: la luz puede verse a puntos; usa tira COB o más profundidad.")
+    elif d.estructura == "doble":
+        minimo = d.fondo + d.frente + 2 * d.encaje + 4
+        if p < minimo:
+            raise ErrorEntrada(f"Profundidad {p:g} mm insuficiente para doble: fondo + frente + 2 faldones + 4 mm = {minimo:g} mm mínimo.")
+    elif d.estructura == "neon":
+        if not 4 <= p <= 30:
+            raise ErrorEntrada("Neón: la profundidad es el grosor de la base, entre 4 y 30 mm.")
+        if min(d.neon_alto * 0.6, p - 2) < 3:
+            raise ErrorEntrada(f"Base de {p:g} mm demasiado fina para el canal del neón: sube la profundidad.")
+    elif d.estructura == "caja_luz":
+        minimo = d.fondo + d.frente + d.mascara + 15
+        if p < minimo:
+            raise ErrorEntrada(f"Profundidad {p:g} mm insuficiente para caja de luz: fondo + difusor + máscara + 15 mm = {minimo:g} mm.")
+        if p - d.fondo - d.frente - d.mascara < 30:
+            avisos.append("Caja de luz con menos de 30 mm de cámara: la luz puede verse a puntos; usa tira COB o más profundidad.")
     elif d.estructura == "caja" and p < d.fondo + 2:
         raise ErrorEntrada(f"Profundidad {p:g} mm insuficiente para caja con fondo {d.fondo:g} mm.")
     elif d.estructura == "halo" and p < d.frente + 5:
         raise ErrorEntrada(f"Profundidad {p:g} mm insuficiente para halo con frente {d.frente:g} mm.")
 
-    if d.estructura != "maciza":
+    if d.estructura not in ("maciza", "neon"):
         lineas = d.pared / BOQUILLA_MM
         if abs(lineas - round(lineas)) > 0.05:
             avisos.append(
                 f"Pared {d.pared:g} mm no es múltiplo de la boquilla {BOQUILLA_MM} mm: "
                 "el laminador puede dejar huecos. Recomendado 1,2 · 1,6 · 2,0."
             )
-    if d.estructura == "frontal" and d.pared_encaje < 2 * BOQUILLA_MM:
+    if d.estructura in ("frontal", "lateral", "doble") and d.pared_encaje < 2 * BOQUILLA_MM:
         avisos.append("Faldón de menos de 2 líneas de boquilla: puede romperse al encajar.")
     cx, cy, cz = d.cama
     if not (cx > 0 and cy > 0 and cz > 0):

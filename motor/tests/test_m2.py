@@ -128,7 +128,7 @@ def test_aviso_tira_led_estrecha():
 def test_metros_led_y_consumo():
     pr = piezas_de("LUCY", w_por_metro=10)
     assert 0.5 < pr.metros_led < 2.0
-    assert "consumo nominal" in pr.resumen()
+    assert " W a 12 V = " in pr.resumen() and "fuente ≥" in pr.resumen()
 
 
 def test_compensacion_xy_reduce_el_contorno():

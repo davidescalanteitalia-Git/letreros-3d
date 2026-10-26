@@ -88,44 +88,62 @@ def agrupar(letras: list[Letra], d) -> tuple[list[Letra], list[str]]:
     return unidades, avisos
 
 
+def contorno_placa(formas, d) -> MultiPolygon:
+    """Contorno de la placa común o de la caja de luz: rectángulo con margen, o silueta suavizada."""
+    m = d.placa_margen
+    if d.placa_forma == "silueta":
+        contorno = multipoligono(formas.buffer(m, join_style=1).buffer(-m / 3, join_style=1).buffer(m / 3, join_style=1))
+        return multipoligono(unary_union(contorno.geoms).convex_hull) if len(contorno.geoms) > 1 else contorno
+    minx, miny, maxx, maxy = formas.bounds
+    return MultiPolygon([box(minx - m, miny - m, maxx + m, maxy + m)])
+
+
 def placa(unidades: list[Letra], resultados, d):
     """Construye la placa común (como una pieza maciza más) con ranuras de posición y agujeros."""
     from .estructuras import construir_letra
 
-    if d.estructura == "halo":
-        raise ErrorEntrada("La placa común no se combina con halo: el halo se separa de la pared con sus separadores.")
+    if d.estructura in ("halo", "doble"):
+        raise ErrorEntrada("La placa común no se combina con halo ni doble: van separados de la pared.")
     formas = unary_union([u.forma for u in unidades])
     m = d.placa_margen
-    if d.placa_forma == "silueta":
-        contorno = multipoligono(formas.buffer(m, join_style=1).buffer(-m / 3, join_style=1).buffer(m / 3, join_style=1))
-        contorno = multipoligono(unary_union(contorno.geoms).convex_hull) if len(contorno.geoms) > 1 else contorno
-    else:
-        minx, miny, maxx, maxy = formas.bounds
-        contorno = MultiPolygon([box(minx - m, miny - m, maxx + m, maxy + m)])
+    contorno = contorno_placa(formas, d)
 
-    g = d.placa_grosor
-    ranuras = multipoligono(unary_union([u.forma.boundary.buffer(RANURA_ANCHO / 2) for u in unidades]))
+    neon = d.estructura == "neon"
+    if neon:  # placa de neón: la placa ES el letrero, con un canal por letra
+        from .estructuras import profundidad_ranura_neon, ranura_neon
+        g = d.profundidad
+        ranuras = multipoligono(unary_union([ranura_neon(u.forma, d) for u in unidades]))
+        prof_ranura = profundidad_ranura_neon(d)
+        r_cable = min(d.cable, d.neon_ancho) / 2
+    else:
+        g = d.placa_grosor
+        ranuras = multipoligono(unary_union([u.forma.boundary.buffer(RANURA_ANCHO / 2) for u in unidades]))
+        prof_ranura = RANURA_PROF
+        r_cable = d.cable / 2
     agujeros = []
     for r in resultados:
         for x, y in getattr(r, "puntos_cable", []):
-            agujeros.append(cilindro(x, y, d.cable / 2, -1, g + 1))
+            agujeros.append(cilindro(x, y, r_cable, -1, g + 1))
     avisos = []
     if d.placa_agujero > 0:
         if d.placa_forma == "rect":
             minx, miny, maxx, maxy = contorno.bounds
             ins = min(m / 2, 15)
             for x, y in ((minx + ins, miny + ins), (maxx - ins, miny + ins), (minx + ins, maxy - ins), (maxx - ins, maxy - ins)):
-                if Point(x, y).buffer(d.placa_agujero / 2 + 1).disjoint(formas):
+                if Point(x, y).buffer(d.placa_agujero / 2 + 1).disjoint(formas.union(ranuras) if neon else formas):
                     agujeros.append(cilindro(x, y, d.placa_agujero / 2, -1, g + 1))
         else:
             avisos.append("Placa con silueta: sin agujeros de fijación automáticos; taladra en obra o usa adhesivo.")
 
     def retocar(solido):
-        return solido - unir([prisma(ranuras, g - RANURA_PROF, g + 1), *agujeros])
+        return solido - unir([prisma(ranuras, g - prof_ranura, g + 1), *agujeros])
 
-    d_placa = replace(d, estructura="maciza", profundidad=g, cable=0, drenaje=False, tira_led=0, comp_xy=0)
+    d_placa = replace(d, estructura="maciza", profundidad=g, cable=0, drenaje=False, tira_led=0, comp_xy=0,
+                      fijacion="ninguna")
     res = construir_letra(Letra(0, "base", contorno, contorno.bounds[0]), d_placa, retoques={"cuerpo": retocar})
+    from .estructuras import subir
     for p in res.piezas:
         p.rol = "placa"
+        p.montaje = None if neon else subir(-g)
     res.avisos = [a.replace("'base'", "la placa") for a in res.avisos] + avisos
     return res

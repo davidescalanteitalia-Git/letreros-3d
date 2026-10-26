@@ -26,7 +26,8 @@ from shapely.geometry import MultiPoint
 SEPARACION = 6.0  # mm entre piezas en la cama
 MARGEN_REAL = 5.0  # la cama útil (320 × 310) está centrada en la física (330 × 320)
 MATERIAL_POR_ROL = {"frente": "difusor"}
-NOMBRE_MATERIAL = {"opaco": "opaco (cuerpos, empalmes, placa)", "difusor": "difusor (frentes translúcidos)"}
+NOMBRE_MATERIAL = {"opaco": "opaco (cuerpos, empalmes, placa, máscara, base)",
+                   "difusor": "difusor translúcido (frentes, traseras, difusor; cuerpo en «lateral»)"}
 
 
 @dataclass
@@ -56,7 +57,7 @@ class Cama:
 
 
 def material(pieza) -> str:
-    return MATERIAL_POR_ROL.get(pieza.rol, "opaco")
+    return getattr(pieza, "material", None) or MATERIAL_POR_ROL.get(pieza.rol, "opaco")
 
 
 def _rot_z(angulo: float) -> np.ndarray:

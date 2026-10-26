@@ -153,10 +153,6 @@ def _informe(proyecto: lm.Proyecto) -> dict:
     }
 
 
-# Piezas que se imprimen boca abajo: para verlas montadas se reflejan en Z.
-_VOLTEAR = {("frontal", "frente"), ("halo", "cuerpo")}
-
-
 def _modelo(datos: dict) -> dict:
     d = diseno_desde_web(datos)
     d = replace(d, tolerancia=max(d.tolerancia, 0.12))  # vista algo más ligera que la fabricación
@@ -168,28 +164,28 @@ def _modelo(datos: dict) -> dict:
     for p in proyecto.piezas:
         v = np.asarray(p.malla.vertices, dtype=np.float32).copy()
         f = np.asarray(p.malla.faces, dtype=np.uint32).copy()
-        montaje = np.eye(4)  # de la pose de impresión a la pose montada
-        if (d.estructura, p.rol) in _VOLTEAR:
-            v[:, 2] = d.profundidad - v[:, 2]
+        montaje = p.montaje if p.montaje is not None else np.eye(4)  # pose de impresión → pose montada
+        v = (np.c_[v, np.ones(len(v), dtype=np.float32)] @ montaje.T.astype(np.float32))[:, :3].astype(np.float32).copy()
+        if np.linalg.det(montaje[:3, :3]) < 0:  # reflejo: invertir el orden para conservar las normales hacia fuera
             f = f[:, [0, 2, 1]].copy()
-            montaje[2, 2], montaje[2, 3] = -1.0, d.profundidad
-        elif p.rol == "empalme":  # va pegado por dentro: sobre el fondo, o detrás del frente en halo
-            dz = (d.profundidad - d.frente - float(v[:, 2].max())) if d.estructura == "halo" else d.fondo
-            v[:, 2] += dz
-            montaje[2, 3] = dz
-        elif p.rol == "placa":  # detrás de las letras
-            v[:, 2] -= d.placa_grosor
-            montaje[2, 3] = -d.placa_grosor
         cama, col = camas[id(p)]
         a_cama = col.matriz @ np.linalg.inv(montaje)  # de la pose montada a su sitio en la cama
         minimo, maximo = np.minimum(minimo, v.min(0)), np.maximum(maximo, v.max(0))
         piezas.append({
-            "archivo": p.archivo, "rol": p.rol, "caracter": p.letra.caracter, "parte": p.parte,
+            "archivo": p.archivo, "rol": p.rol, "caracter": p.letra.caracter, "parte": p.parte, "material": p.material,
             "unidad": p.letra.indice, "cama": cama.numero, "m_cama": [round(float(x), 5) for x in a_cama.T.ravel()],
             "v": base64.b64encode(v.tobytes()).decode(), "i": base64.b64encode(f.tobytes()).decode(),
         })
+    visuales = []
+    for r in proyecto.letras:
+        for rol, malla in r.visual:
+            v = np.asarray(malla.vertices, dtype=np.float32)
+            minimo, maximo = np.minimum(minimo, v.min(0)), np.maximum(maximo, v.max(0))
+            visuales.append({"rol": rol, "caracter": r.letra.caracter,
+                             "v": base64.b64encode(v.tobytes()).decode(),
+                             "i": base64.b64encode(np.asarray(malla.faces, dtype=np.uint32).tobytes()).decode()})
     return {
-        "estructura": d.estructura, "profundidad": d.profundidad, "separacion": d.separacion,
+        "estructura": d.estructura, "profundidad": d.profundidad, "separacion": d.separacion, "visuales": visuales,
         "cama": list(d.cama), "costes": proyecto.costes(),
         "minimo": [round(float(x), 2) for x in minimo], "maximo": [round(float(x), 2) for x in maximo],
         "piezas": piezas, **{k: v for k, v in _informe(proyecto).items() if k != "piezas"},
