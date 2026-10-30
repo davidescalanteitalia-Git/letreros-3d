@@ -121,6 +121,14 @@ def generar_letrero(diseno: Diseno) -> Proyecto:
     letras = maquetar(d.texto, d.fuente, d.altura, d.espaciado, d.tolerancia, d.interlineado, d.alineacion)
     unidades, avisos_conjunto = agrupar(letras, d)
     avisos += avisos_conjunto
+    if d.salida_cable != "cada_pieza" and d.estructura not in ("maciza", "caja_luz"):
+        # Una sola salida de cable para todo el letrero: el resto de piezas sin agujero.
+        orden = sorted(range(len(unidades)), key=lambda i: (unidades[i].linea, unidades[i].forma.bounds[0]))
+        elegida = orden[0] if d.salida_cable == "inicio" else orden[-1]
+        unidades = [replace(u, salida=(d.salida_cable if i == elegida else "no")) for i, u in enumerate(unidades)]
+        if len(unidades) > 1:
+            avisos.append(f"Una sola salida de cable ({d.salida_cable}): hay {len(unidades)} piezas separadas; "
+                          "pasa el cable entre ellas por detrás o usa letras unidas con barra.")
     if d.estructura == "caja_luz":
         from .caja_luz import construir_caja_luz
         resultados = [construir_caja_luz(unidades, d)]
@@ -312,6 +320,16 @@ def _leeme(proyecto: Proyecto, ficha: dict) -> str:
     if d.estructura == "neon":
         partes += ["", f"NEÓN: canal de {d.neon_ancho:g} mm siguiendo el contorno. Respeta el radio mínimo de curvatura de tu "
                    "neón en las esquinas; si no entra, calienta el neón suavemente o usa uno más fino. Sella con silicona neutra."]
+    por_piezas = [r for r in proyecto.letras if getattr(r.letra, "partes", ())]
+    if por_piezas:
+        partes += ["", "LETRAS UNIDAS POR PIEZAS"]
+        for r in por_piezas:
+            partes.append(f"  «{r.letra.caracter}»: " + " → ".join(r.letra.partes) + " (de izquierda a derecha).")
+        partes.append("  1. Coloca los cuerpos en orden y pega en cada junta su placa de empalme (ap+er, er+to…) por dentro.")
+        partes.append("  2. Pasa la tira y el cable por dentro de los puentes de una pieza a otra antes de cerrar.")
+        if d.salida_cable != "cada_pieza":
+            partes.append(f"  3. El cable sale por un único agujero, al {'principio' if d.salida_cable == 'inicio' else 'final'} del letrero.")
+        partes.append("  Las tapas van desplazadas: cada una pisa la junta siguiente y traba las dos piezas.")
     partes += ["", "CONTORNOS: contornos.dxf (mm, 1:1, en posición de montaje). Capa LETRAS para cortar a láser "
                "el frente de metacrilato (estructura caja) o vinilo; CORTES y CABLE como referencia."]
     if d.estructura == "frontal":

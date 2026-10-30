@@ -71,6 +71,10 @@ def main(argv: list[str] | None = None) -> int:
     pl.add_argument("--no-dividir", action="store_true", help="error en vez de dividir lo que no cabe en la cama")
     pl.add_argument("--precio-kg", type=float, default=25.0, help="€/kg de filamento para el presupuesto")
     pl.add_argument("--precio-led-m", type=float, default=0.0, help="€/m de tira LED para el presupuesto")
+    pl.add_argument("--letras-por-pieza", type=int, default=0,
+                    help="unidas: piezas de N letras con uniones entre ellas (0 = toda la palabra)")
+    pl.add_argument("--salida-cable", choices=["cada_pieza", "inicio", "fin"], default="cada_pieza",
+                    help="una sola salida de cable al principio o al final (cable por dentro de los puentes)")
     g2 = pl.add_argument_group("luz, neón, caja de luz y fijación (v0.7)")
     g2.add_argument("--fijacion", choices=["ninguna", "insertos", "pasantes"], default="ninguna",
                     help="torretas para inserto M4 o agujeros pasantes avellanados. Def. ninguna")
@@ -104,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
         if a.cmd == "letrero":
             d = Diseno(a.texto.replace("\\n", "\n"), estructura=a.estructura,
                        alineacion=a.alineacion, interlineado=a.interlineado, fijacion=a.fijacion,
+                       letras_por_pieza=a.letras_por_pieza, salida_cable=a.salida_cable,
                        tension=a.tension, paso_led=a.paso_led, neon_ancho=a.neon_ancho, neon_alto=a.neon_alto,
                        neon_borde=a.neon_borde, mascara=a.mascara, repisa=a.repisa, espaciado=a.espaciado, tira_led=a.tira_led,
                        w_por_metro=a.w_por_metro, cable=a.cable, drenaje=a.drenaje,

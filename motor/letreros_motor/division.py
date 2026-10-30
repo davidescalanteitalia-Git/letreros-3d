@@ -92,10 +92,17 @@ def _plan_1d(forma, lim, macizo, holgura, evitar):
         n += 1
     else:
         raise ErrorEntrada("No se encontró una forma de dividir la pieza; reduce la altura.")
+    regiones, hembras = _regiones(forma, cortes, macizo, holgura)
+    return cortes, regiones, hembras
+
+
+def _regiones(forma, cortes, macizo, holgura):
+    """Franjas entre cortes verticales; en macizas, con cola de milano en cada tramo cortado."""
+    minx, _, maxx, _ = forma.bounds
     bordes = [minx - 60, *cortes, maxx + 60]
     franjas = [box(bordes[i], forma.bounds[1] - 60, bordes[i + 1], forma.bounds[3] + 60) for i in range(len(bordes) - 1)]
     if not macizo:
-        return cortes, franjas, franjas
+        return franjas, franjas
     colas = [_colas(forma, x) for x in cortes]
     regiones, hembras = [], []
     for i, franja in enumerate(franjas):
@@ -103,7 +110,31 @@ def _plan_1d(forma, lim, macizo, holgura, evitar):
         ajena = colas[i - 1] if i > 0 else Polygon()  # hembra en el lado izquierdo
         regiones.append(unary_union([franja, propia]).difference(ajena))
         hembras.append(unary_union([franja, propia]).difference(ajena.buffer(holgura, join_style=2)))
-    return cortes, regiones, hembras
+    return regiones, hembras
+
+
+def plan_forzado(forma: MultiPolygon, cortes: list[float], nombres: list[str], macizo: bool, holgura: float) -> Plan:
+    """Plan con los cortes que elige el usuario (p. ej. una pieza cada 2 letras)."""
+    regiones, hembras = _regiones(forma, cortes, macizo, holgura)
+    miny, maxy = forma.bounds[1], forma.bounds[3]
+    juntas = [(f"{nombres[k]}+{nombres[k + 1]}", LineString([(x, miny - 1), (x, maxy + 1)])) for k, x in enumerate(cortes)]
+    return Plan(list(cortes), [multipoligono(r) for r in regiones], [multipoligono(h) for h in hembras], list(nombres),
+                [], juntas)
+
+
+def corte_estrecho(forma: MultiPolygon, x0: float, x1: float, evitar=()) -> float:
+    """x entre x0 y x1 donde la pieza es más estrecha (sin astillas ni puntos a evitar)."""
+    mejor, puntos = None, None
+    x = x0
+    while x <= x1 + 1e-9:
+        longitudes = _cruces(forma, x)
+        if longitudes:
+            p = sum(longitudes) + 60 * sum(1 for L in longitudes if L < ASTILLA)
+            p += sum(80 for e in evitar if abs(e - x) < EVITAR)
+            if puntos is None or p < puntos:
+                mejor, puntos = x, p
+        x += 0.5
+    return round(mejor if mejor is not None else (x0 + x1) / 2, 2)
 
 
 def planificar(forma: MultiPolygon, cama, macizo: bool, holgura: float, puntos) -> Plan:

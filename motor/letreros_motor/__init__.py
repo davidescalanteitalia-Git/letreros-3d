@@ -9,8 +9,10 @@ v0.4: varias líneas (alineación, interlineado), división horizontal en rejill
       camas por material con 3MF para Bambu Studio y contornos DXF 1:1.
 v0.5: estructuras lateral, doble, neón flex y caja de luz; plan de LED por filas, plan
       eléctrico (W, A, fuente) y fijaciones (insertos M4, pasantes, colgadores).
+v0.6: letras unidas por piezas de N letras (cortes elegidos, tapas desplazadas que traban
+      la junta) y una sola salida de cable al principio o al final.
 """
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 from .diseno import ESTRUCTURAS, Diseno, validar  # noqa: E402
 from .errores import ErrorEntrada, ErrorGeometria  # noqa: E402

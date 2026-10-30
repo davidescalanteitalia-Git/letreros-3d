@@ -4,7 +4,7 @@
 Letreros 3D Studio, software independiente de rotulación y producción FDM. Usuario final de habla española. Repositorio: davidescalanteitalia-Git/letreros-3d, rama main. Sitio publicado: https://letreros.d4digitalstudio.it. Infraestructura: Coolify alojado en Hetzner; DNS mediante Cloudflare. No asumir que Claude tenga acceso a esos servicios o sus tokens.
 
 ## REALIDAD VERIFICADA (2026-10-25)
-- `index.html` v0.7: editor en español + pestaña Fabricar STL conectada a la API (comprobar, visor 3D three.js con geometría real, ZIP de piezas, probeta). Vista SVG sigue siendo ilustrativa.
+- `index.html` v0.8: editor en español + pestaña Fabricar STL conectada a la API (comprobar, visor 3D three.js con geometría real, ZIP de piezas, probeta). Vista SVG sigue siendo ilustrativa.
 - `servidor/`: FastAPI que sirve index.html y la API (/api/salud, /api/opciones, /api/comprobar, /api/modelo, /api/letrero, /api/probeta); clave opcional LETREROS_CLAVE, límites de tamaño/tiempo/IP, CSP. three.js 0.170 local en servidor/estaticos/vendor (MIT).
 - `Dockerfile`: python:3.13-slim, usuario no root, uvicorn en puerto 80, healthcheck /api/salud. Misma configuración de Coolify que antes.
 - `docs/`: análisis comparativo y roadmaps; no equivale a código desarrollado.
@@ -15,6 +15,8 @@ Letreros 3D Studio, software independiente de rotulación y producción FDM. Usu
 - v0.5 (motor 0.3.0): 10 fuentes OFL en motor/fuentes (SHA-256, variables fijadas en memoria), HarfBuzz (uharfbuzz), conjunto individual/unidas/placa, división vertical automática (cola de milano en macizas, empalme interior en huecas), plantilla-montaje.svg 1:1, presupuesto. 192 pruebas.
 - v0.6 (motor 0.4.0, rama feat/v06-lineas-3mf): varias líneas (alineación, interlineado), división en rejilla (horizontal + vertical), camas por material en 3MF (escrito a mano, 3MF Core) y contornos.dxf (ezdxf). Visor con «Ver camas de impresión». 3MF validado con lector propio y trimesh; falta abrirlo en Bambu Studio real.
 - v0.7 (motor 0.5.0, rama feat/v07-estructuras-pro): estructuras lateral, doble, neon (base/placa con canal) y caja_luz (galce, guías, colgadores, difusor + máscara); plan de LED por filas, plan eléctrico desde W/m del usuario, fijaciones (insertos M4/pasantes). Cada Pieza lleva material y matriz de montaje (el visor usa esa pose). Sin verificar aún en pieza física.
+- v0.8 (motor 0.6.0, rama feat/v08-piezas-unidas): letras_por_pieza (cortes forzados por grupos de letras, nombres ap/er/to, empalmes ap+er), tapas desplazadas que traban la junta, salida_cable inicio/fin (un solo agujero; puentes con hueco para cable).
+- OJO despliegue: a 2026-10-30 la web publicada sigue en motor 0.2.0 (v0.4) aunque main tiene la v0.5: falta Redeploy en Coolify.
 - No existe aún: logotipos SVG, base de datos ni cuentas.
 
 ## Trabajo esperado

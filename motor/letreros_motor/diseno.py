@@ -26,6 +26,9 @@ ILUMINADAS = ("frontal", "halo", "lateral", "doble", "caja_luz", "caja")
 FIJACIONES = {"ninguna": "Sin fijación (adhesivo o placa)", "insertos": "Torretas para inserto roscado M4 (Ø5,6 × 8)",
               "pasantes": "Agujeros pasantes Ø4,5 avellanados para tornillo y taco"}
 TENSIONES = (5.0, 12.0, 24.0)
+SALIDAS_CABLE = {"cada_pieza": "Un agujero de cable en cada pieza",
+                 "inicio": "Una sola salida, en la primera letra (cable por dentro de los puentes)",
+                 "fin": "Una sola salida, en la última letra (cable por dentro de los puentes)"}
 
 BOQUILLA_MM = 0.4
 # Bambu Lab A2L: 330 × 320 × 325 mm nominales, margen hipotético de 5 mm por lado en XY.
@@ -63,6 +66,8 @@ class Diseno:
     dividir: bool = True           # dividir automáticamente lo que no cabe en la cama
     precio_kg: float = 25.0        # €/kg de filamento (presupuesto)
     precio_led_m: float = 0.0      # €/m de tira LED (presupuesto)
+    letras_por_pieza: int = 0      # unidas: piezas de N letras con uniones entre ellas (0 = una pieza por palabra)
+    salida_cable: str = "cada_pieza"  # cada_pieza | inicio | fin (unidas: una sola salida de cable)
     fijacion: str = "ninguna"      # ninguna | insertos | pasantes
     tension: float = 12.0          # V de la tira (5, 12, 24): amperios y fuente recomendada
     paso_led: float = 0.0          # separación entre filas de LED (0 = automática: ≈ distancia a la cara)
@@ -172,6 +177,14 @@ def validar(d: Diseno) -> tuple[Diseno, list[str]]:
     from .texto import ALINEACIONES
     if d.alineacion not in ALINEACIONES:
         raise ErrorEntrada(f"Alineación '{d.alineacion}' desconocida. Opciones: {', '.join(ALINEACIONES)}.")
+    try:
+        lpp = int(float(d.letras_por_pieza))
+    except (TypeError, ValueError):
+        raise ErrorEntrada("Letras por pieza debe ser un número entero.") from None
+    if not 0 <= lpp <= 10:
+        raise ErrorEntrada("Letras por pieza entre 0 (una pieza por palabra) y 10.")
+    if d.salida_cable not in SALIDAS_CABLE:
+        raise ErrorEntrada(f"Salida de cable '{d.salida_cable}' desconocida. Opciones: {', '.join(SALIDAS_CABLE)}.")
     if d.fijacion not in FIJACIONES:
         raise ErrorEntrada(f"Fijación '{d.fijacion}' desconocida. Opciones: {', '.join(FIJACIONES)}.")
     tension = _num("tension", d.tension)
@@ -181,7 +194,7 @@ def validar(d: Diseno) -> tuple[Diseno, list[str]]:
         raise ErrorEntrada("La forma de la placa es 'rect' o 'silueta'.")
     from .fuentes import obtener_fuente
     obtener_fuente(d.fuente)
-    d = replace(d, tension=tension, interlineado=interlineado, tira_led=tira, cable=cable, drenaje=bool(d.drenaje), dividir=bool(d.dividir),
+    d = replace(d, letras_por_pieza=lpp, tension=tension, interlineado=interlineado, tira_led=tira, cable=cable, drenaje=bool(d.drenaje), dividir=bool(d.dividir),
                 placa_agujero=agujero, **cambios)
     if d.conjunto == "placa" and d.estructura in ("halo", "doble"):
         raise ErrorEntrada("La placa común no se combina con halo ni doble: van separados de la pared.")

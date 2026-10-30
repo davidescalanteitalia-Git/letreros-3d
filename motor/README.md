@@ -63,6 +63,12 @@ Añade `--zip` para obtener además `salida\LUCY.zip`.
 | `--separacion` | 20 | 5–80 | Halo: distancia de la letra a la pared. |
 | `--tornillo` | 3,2 | 2–6 | Halo: Ø del agujero de cada separador. |
 
+### Letras unidas por piezas (v0.8)
+`python -m letreros_motor letrero "aperto" --fuente pacifico --conjunto unidas --letras-por-pieza 2 --salida-cable fin -o salida\aperto`
+- `--letras-por-pieza N`: corta la palabra unida en piezas de N letras por el punto más estrecho entre grupos (piezas «ap», «er», «to»). Cada pieza debe caber en la cama; si no, el error lo dice.
+- Huecas: placa de empalme interior por junta (`ap+er`) y tapas desplazadas que cruzan la junta. Macizas y neón: cola de milano.
+- `--salida-cable inicio|fin`: un solo agujero de cable para todo el letrero; los puentes entre letras quedan huecos para pasar el cable por dentro.
+
 ### Luz, instalación y fijación (v0.7)
 | Opción | Def. | Qué es |
 |---|---|---|

@@ -127,6 +127,27 @@ def comprobar_trazos(forma: MultiPolygon) -> bool:
 
 # --------------------------------------------------------------------------- estructuras
 
+def huecos_cable(huecos: list[Polygon], letra: Letra, d: Diseno) -> list[Polygon]:
+    """Hueco donde va el agujero de cable: el mayor, o el primero/último si hay una sola salida."""
+    if not huecos or getattr(letra, "salida", "") == "no":
+        return []
+    salida = getattr(letra, "salida", "")
+    if salida in ("inicio", "fin"):
+        from shapely.geometry import box as _box
+        todo = unary_union(huecos)
+        minx, miny, maxx, maxy = todo.bounds
+        for f in (0.3, 0.5, 0.8, 1.2, 3.0):
+            w = f * d.altura
+            franja = _box(minx - 1, miny - 1, minx + w, maxy + 1) if salida == "inicio" else _box(maxx - w, miny - 1, maxx + 1, maxy + 1)
+            trozos = poligonos(todo.intersection(franja))
+            if trozos:
+                mayor = max(trozos, key=lambda q: q.area)
+                if _punto_mas_holgado(mayor)[1] >= d.cable / 2 + 0.8:
+                    return [mayor]
+        return [max(huecos, key=lambda q: q.area)]
+    return [max(huecos, key=lambda q: q.area)]
+
+
 def _agujero_cable(huecos: list[Polygon], d: Diseno, z_fondo: float, avisos: list[str], c: str):
     if d.cable <= 0 or not huecos:
         return m3d.Manifold()
@@ -343,8 +364,9 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
             huecos.extend(h.geoms)
         res.hueca = bool(huecos)
     hueco = MultiPolygon(huecos)
-    if d.estructura in ("caja", "frontal", "lateral") and d.cable > 0 and huecos:
-        pc, rc = _punto_mas_holgado(max(huecos, key=lambda q: q.area))
+    hc = huecos_cable(huecos, letra, d)
+    if d.estructura in ("caja", "frontal", "lateral") and d.cable > 0 and hc:
+        pc, rc = _punto_mas_holgado(hc[0])
         if rc >= d.cable / 2 + 0.8:
             res.puntos_cable = [(pc.x, pc.y)]
     p = d.profundidad
@@ -362,7 +384,7 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
         cuerpo = prisma(forma, 0, p) - prisma(hueco, d.fondo, p + 1)
         suma, resta, res.puntos_fijacion = _fijaciones(huecos, d, d.fondo, p - d.fondo, av, c, res.puntos_cable)
         cuerpo = unir([cuerpo, *suma])
-        cuerpo -= unir([_agujero_cable(huecos, d, d.fondo, av, c), _agujero_drenaje(huecos, d, d.fondo, av, c), *resta])
+        cuerpo -= unir([_agujero_cable(hc, d, d.fondo, av, c), _agujero_drenaje(huecos, d, d.fondo, av, c), *resta])
         solidos.append(("cuerpo", cuerpo))
         _comprobar_led(huecos, d, av, c)
 
@@ -372,7 +394,7 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
         libre = alto_cuerpo - d.fondo - d.encaje
         suma, resta, res.puntos_fijacion = _fijaciones(huecos, d, d.fondo, libre, av, c, res.puntos_cable)
         cuerpo = unir([cuerpo, *suma])
-        cuerpo -= unir([_agujero_cable(huecos, d, d.fondo, av, c), _agujero_drenaje(huecos, d, d.fondo, av, c), *resta])
+        cuerpo -= unir([_agujero_cable(hc, d, d.fondo, av, c), _agujero_drenaje(huecos, d, d.fondo, av, c), *resta])
         solidos.append(("cuerpo", cuerpo))
         solidos.append(("frente", unir([prisma(forma, 0, d.frente), *_faldon(huecos, d, av, c, d.frente)])))
         montajes["frente"] = voltear(p)
@@ -395,8 +417,8 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
         pts = _puntos_fijacion(huecos, max(d.tornillo / 2 + 4.0, d.encaje))
         res.puntos_separadores = [(x, y) for x, y, _ in pts]
         quitar = [cilindro(x, y, d.tornillo / 2, -1, d.fondo + d.encaje + 1) for x, y in res.puntos_separadores]
-        if d.cable > 0 and huecos:
-            pc, rc = _punto_mas_holgado(max(huecos, key=lambda q: q.area))
+        if d.cable > 0 and hc:
+            pc, rc = _punto_mas_holgado(hc[0])
             if rc >= d.cable / 2 + 0.8 and all((pc.x - x) ** 2 + (pc.y - y) ** 2 > (d.cable + d.tornillo) ** 2
                                                for x, y in res.puntos_separadores):
                 quitar.append(cilindro(pc.x, pc.y, d.cable / 2, -1, d.fondo + 1))
@@ -423,9 +445,12 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
         base = prisma(base_forma, 0, p) - prisma(ranura, p - g, p + 1)
         # Paso de cable por el punto más bajo del canal (donde empieza el neón).
         from shapely.geometry import Point
-        borde = min((pt for g_ in ranura.geoms for pt in g_.exterior.coords), key=lambda q: (q[1], q[0]))
+        clave = (lambda q: (-q[0] + 0.0 * q[1])) if getattr(letra, "salida", "") == "fin" else (lambda q: (q[1], q[0]))
+        if getattr(letra, "salida", "") == "inicio":
+            clave = lambda q: q[0]  # noqa: E731
+        borde = min((pt for g_ in ranura.geoms for pt in g_.exterior.coords), key=clave)
         punto = _mas_cercano(multipoligono(ranura.buffer(-0.5)), Point(borde))
-        if d.cable > 0:
+        if d.cable > 0 and getattr(letra, "salida", "") != "no":
             base -= cilindro(punto.x, punto.y, min(d.cable, d.neon_ancho) / 2, -1, p)
             res.puntos_cable = [(punto.x, punto.y)]
         libres = multipoligono(base_forma.difference(ranura.buffer(4.0)))
@@ -472,7 +497,9 @@ def finalizar(res: ResultadoLetra, letra: Letra, d: Diseno, forma: MultiPolygon,
     c, av = letra.caracter, res.avisos
     inicio = len(res.piezas)
     cabe, _, (w, h) = _cabe_en_cama(forma, d.cama)
-    if cabe:
+    if getattr(letra, "cortes", ()):
+        _dividir(res, letra, d, forma, hueco, solidos, puntos, forzado=True)
+    elif cabe:
         for rol, solido in solidos:
             res.piezas.append(_pieza(letra, rol, solido, forma))
     else:
@@ -491,6 +518,11 @@ def finalizar(res: ResultadoLetra, letra: Letra, d: Diseno, forma: MultiPolygon,
         elif pieza.rol in montajes:
             pieza.montaje = montajes[pieza.rol]
         cabe, girada, (w, h) = _cabe_en_cama(pieza.huella, d.cama)
+        if not cabe and getattr(letra, "cortes", ()):
+            raise ErrorEntrada(
+                f"La pieza «{pieza.parte}» mide {w:.0f} × {h:.0f} mm y no cabe en la cama "
+                f"{d.cama[0]:g} × {d.cama[1]:g} mm: pon menos letras por pieza o reduce la altura."
+            )
         if not cabe:
             raise ErrorEntrada(
                 f"La pieza {pieza.archivo} mide {w:.0f} × {h:.0f} mm y no cabe en la cama "
@@ -526,21 +558,50 @@ EMPALME_GROSOR = 2.4
 BANDA_GROSOR = 2.0  # doble: el empalme es una banda pegada a la pared interior (no hay fondo)
 
 
-def _dividir(res, letra, d, forma, hueco, solidos, puntos):
+TAPAS = ("frente", "trasera", "difusor", "mascara")
+
+
+def _plan_tapas(forma, plan, d):
+    """Cortes de las tapas desplazados respecto a los del cuerpo: cada tapa cruza la junta y
+    traba las dos piezas (si las tapas siguen cabiendo en la cama)."""
+    from .division import corte_estrecho, plan_forzado
+    xs = plan.cortes
+    nuevos = []
+    for k, x in enumerate(xs):
+        limite = xs[k + 1] - 15 if k + 1 < len(xs) else forma.bounds[2] - 15
+        if limite - x < 20:
+            return None
+        nuevos.append(corte_estrecho(forma, x + 12, min(x + 45, limite)))
+    tapas = plan_forzado(forma, nuevos, plan.nombres, False, d.holgura)
+    for region in tapas.regiones:
+        if not _cabe_en_cama(multipoligono(forma.intersection(region)), d.cama)[0]:
+            return None
+    return tapas
+
+
+def _dividir(res, letra, d, forma, hueco, solidos, puntos, forzado=False):
     from shapely.geometry import Point
 
-    from .division import empalmes, planificar
+    from .division import empalmes, plan_forzado, planificar
     macizo = d.estructura in ("maciza", "neon") or not res.hueca
-    plan = planificar(forma, d.cama, macizo, d.holgura, puntos)
+    if forzado:
+        plan = plan_forzado(forma, list(letra.cortes), list(letra.partes), macizo, d.holgura)
+    else:
+        plan = planificar(forma, d.cama, macizo, d.holgura, puntos)
+    tapas = _plan_tapas(forma, plan, d) if forzado and not macizo else None
     alto = d.profundidad + d.separacion + 60
-    for nombre, region in zip(plan.nombres, plan.regiones_hembra):
-        corte = prisma(region, -30, alto)
-        for rol, solido in solidos:
+    for rol, solido in solidos:
+        p_rol = tapas if (tapas is not None and rol in TAPAS) else plan
+        for nombre, region in zip(p_rol.nombres, p_rol.regiones_hembra):
+            corte = prisma(region, -30, alto)
             parte = solido ^ corte
             if parte.is_empty() or parte.volume() < 1.0:
                 continue
             huella = multipoligono(forma.intersection(region))
             res.piezas.append(_pieza(letra, rol, parte, huella, nombre))
+    if tapas is not None:
+        res.avisos.append(f"'{letra.caracter}': las tapas van desplazadas respecto a las juntas del cuerpo "
+                          "(cada tapa cruza la junta y traba las dos piezas).")
     if not macizo:
         libres = [Point(x, y).buffer(max(d.cable / 2, R_SEPARADOR) + 1.5) for x, y in puntos]
         for (union, _), zona in zip(plan.juntas, empalmes(hueco, plan.juntas, d.holgura)):
@@ -561,6 +622,9 @@ def _dividir(res, letra, d, forma, hueco, solidos, puntos):
     res.cortes_y = plan.cortes_y
     res.juntas = [tuple(map(tuple, seg.coords)) for _, seg in plan.juntas]
     tipo = "cola de milano" if macizo else "corte recto + placa de empalme interior"
+    if forzado:
+        res.avisos.append(f"'{letra.caracter}': {len(plan.nombres)} piezas ({', '.join(plan.nombres)}) unidas con {tipo}.")
+        return
     donde = []
     if plan.cortes:
         donde.append("x = " + ", ".join(f"{x:.0f}" for x in plan.cortes))

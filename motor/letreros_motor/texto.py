@@ -30,6 +30,9 @@ class Letra:
     origen_x: float  # x del origen tipográfico, para el mapa de montaje
     palabra: int = 0  # 0, 1, 2… según los espacios y saltos de línea del texto
     linea: int = 0  # 0 = primera línea (arriba)
+    cortes: tuple = ()  # x de los cortes elegidos (letras unidas por piezas de N letras)
+    partes: tuple = ()  # nombre de cada pieza resultante («ap», «er», «to»)
+    salida: str = ""  # cable: "" = donde haya más sitio · "inicio" / "fin" · "no" = sin agujero
 
     @property
     def codigo(self) -> str:
