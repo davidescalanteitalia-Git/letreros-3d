@@ -37,6 +37,7 @@ CAMPOS_EXTRA = {
     "placa_agujero": "placa_agujero", "precio_kg": "precio_kg", "precio_led_m": "precio_led_m",
     "paso_led": "paso_led", "neon_ancho": "neon_ancho", "neon_alto": "neon_alto", "neon_borde": "neon_borde",
     "mascara": "mascara", "repisa": "repisa", "tension": "tension", "letras_por_pieza": "letras_por_pieza",
+    "logo_altura": "logo_altura", "logo_separacion": "logo_separacion",
 }
 LIMITE_TEXTO_CAMPO = 100
 
@@ -104,6 +105,11 @@ def diseno_desde_web(datos: dict) -> Diseno:
     alineacion = _texto(datos, "alineacion", "centro")
     if alineacion:
         kwargs["alineacion"] = alineacion
+    posicion = _texto(datos, "logo_posicion", "izquierda")
+    if posicion:
+        kwargs["logo_posicion"] = posicion
+    if not _texto(datos, "logo_id"):
+        kwargs["logo_altura"] = 0.0  # sin logo cargado no se reserva sitio
     salida = _texto(datos, "salida_cable", "cada_pieza")
     if salida:
         kwargs["salida_cable"] = salida

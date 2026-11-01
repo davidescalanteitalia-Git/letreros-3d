@@ -11,8 +11,10 @@ v0.5: estructuras lateral, doble, neón flex y caja de luz; plan de LED por fila
       eléctrico (W, A, fuente) y fijaciones (insertos M4, pasantes, colgadores).
 v0.6: letras unidas por piezas de N letras (cortes elegidos, tapas desplazadas que traban
       la junta) y una sola salida de cable al principio o al final.
+v0.7: logotipos SVG/DXF con las mismas estructuras; tiempo de impresión estimado y
+      ajustes recomendados para Bambu Studio (A2L + PETG).
 """
-__version__ = "0.6.0"
+__version__ = "0.7.0"
 
 from .diseno import ESTRUCTURAS, Diseno, validar  # noqa: E402
 from .errores import ErrorEntrada, ErrorGeometria  # noqa: E402

@@ -2,7 +2,7 @@
 
 Aplicación propia para diseño y futura fabricación de letreros corpóreos impresos en 3D.
 
-## Estado actual (v0.8)
+## Estado actual (v0.9)
 **Web + motor en un solo contenedor.** `letreros.d4digitalstudio.it` sirve el editor (`index.html`) y la API del motor (`servidor/app.py`, FastAPI):
 - Diseñar: texto, fuente, medidas, estructura; guardar/abrir proyecto JSON; boceto SVG.
 - **Fabricar STL**: comprobar el diseño (medidas reales, peso PETG, metros de LED, avisos por letra), **visor 3D de la geometría real** (vista explotada, corte, luz encendida), descargar todas las piezas en ZIP (STL por pieza + `LEEME.txt` con montaje + `ficha.json`) y la probeta de holguras.
@@ -14,6 +14,9 @@ Aplicación propia para diseño y futura fabricación de letreros corpóreos imp
 - **Camas listas para Bambu Studio**: el ZIP trae `camas/cama-NN-opaco.3mf` y `…-difusor.3mf` con las piezas ya colocadas y separadas por filamento; el visor 3D tiene «Ver camas de impresión».
 - **Contornos DXF 1:1** (`contornos.dxf`, mm) para cortar a láser el frente de metacrilato de la caja, vinilo o plantillas.
 - **Plantilla de montaje 1:1** (`plantilla-montaje.svg`) y **presupuesto** de filamento y LED.
+- **Vista 3D en vivo** (v0.9) en la pantalla de diseño: al cambiar texto, fuente, medidas, estructura o logo, la geometría real se actualiza sola (con pausa de ~1 s; interruptor «3D en vivo»).
+- **Logotipos SVG o DXF** (v0.9): sube el logo del negocio y se fabrica con la misma estructura que las letras (hueco con luz, neón, maciza…). Alto, posición (izquierda, derecha, encima, debajo) y separación; también logo solo, sin texto. El proyecto JSON guarda el logo.
+- **Tiempo de impresión estimado** por cama y total, y **ajustes recomendados de Bambu Studio** (A2L + PETG) en el LEEME.
 - **Letras unidas por piezas** (v0.8): elige cuántas letras lleva cada pieza (p. ej. «aperto» → ap · er · to). Las piezas se unen con cola de milano (macizas) o placa de empalme interior + **tapas desplazadas** que cruzan la junta (huecas); el cable pasa por dentro de los puentes y sale por **un solo agujero** al principio o al final.
 - **8 estructuras**: frontal (frente a presión), halo (separadores), caja, maciza, **lateral iluminado** (frente opaco, cuerpo translúcido), **doble luz** (frente y trasera translúcidos, separadores metálicos), **neón flex** (base o placa común con canal a la medida del neón) y **caja de luz** (caja con galce, guías de tira, colgadores; difusor con letras en relieve + máscara calada a ras).
 - **Luz e instalación**: filas de LED según la distancia a la cara, metros por letra, consumo, amperios, fuente con 20 % de margen y puntos de alimentación (con los W/m de tu tira).

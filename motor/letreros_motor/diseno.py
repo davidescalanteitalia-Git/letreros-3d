@@ -26,6 +26,7 @@ ILUMINADAS = ("frontal", "halo", "lateral", "doble", "caja_luz", "caja")
 FIJACIONES = {"ninguna": "Sin fijación (adhesivo o placa)", "insertos": "Torretas para inserto roscado M4 (Ø5,6 × 8)",
               "pasantes": "Agujeros pasantes Ø4,5 avellanados para tornillo y taco"}
 TENSIONES = (5.0, 12.0, 24.0)
+POSICIONES_LOGO = ("izquierda", "derecha", "arriba", "abajo")
 SALIDAS_CABLE = {"cada_pieza": "Un agujero de cable en cada pieza",
                  "inicio": "Una sola salida, en la primera letra (cable por dentro de los puentes)",
                  "fin": "Una sola salida, en la última letra (cable por dentro de los puentes)"}
@@ -66,6 +67,9 @@ class Diseno:
     dividir: bool = True           # dividir automáticamente lo que no cabe en la cama
     precio_kg: float = 25.0        # €/kg de filamento (presupuesto)
     precio_led_m: float = 0.0      # €/m de tira LED (presupuesto)
+    logo_altura: float = 0.0       # alto del logo en mm (0 = sin logo)
+    logo_posicion: str = "izquierda"  # izquierda | derecha | arriba | abajo (respecto al texto)
+    logo_separacion: float = 15.0  # distancia del logo al texto
     letras_por_pieza: int = 0      # unidas: piezas de N letras con uniones entre ellas (0 = una pieza por palabra)
     salida_cable: str = "cada_pieza"  # cada_pieza | inicio | fin (unidas: una sola salida de cable)
     fijacion: str = "ninguna"      # ninguna | insertos | pasantes
@@ -122,6 +126,8 @@ _RANGOS = {
     "neon_borde": (2, 30),
     "mascara": (0.8, 4),
     "repisa": (1.5, 10),
+    "logo_altura": (0, 1000),
+    "logo_separacion": (-50, 300),
 }
 
 _NOMBRES = {
@@ -134,6 +140,7 @@ _NOMBRES = {
     "precio_kg": "Precio del filamento", "precio_led_m": "Precio de la tira LED",
     "paso_led": "Separación entre filas de LED", "neon_ancho": "Ancho del neón", "neon_alto": "Alto del neón",
     "neon_borde": "Borde de la base del neón", "mascara": "Grosor de la máscara", "repisa": "Galce de la caja",
+    "logo_altura": "Altura del logo", "logo_separacion": "Separación del logo",
 }
 
 
@@ -183,6 +190,8 @@ def validar(d: Diseno) -> tuple[Diseno, list[str]]:
         raise ErrorEntrada("Letras por pieza debe ser un número entero.") from None
     if not 0 <= lpp <= 10:
         raise ErrorEntrada("Letras por pieza entre 0 (una pieza por palabra) y 10.")
+    if d.logo_posicion not in POSICIONES_LOGO:
+        raise ErrorEntrada(f"Posición del logo '{d.logo_posicion}' desconocida. Opciones: {', '.join(POSICIONES_LOGO)}.")
     if d.salida_cable not in SALIDAS_CABLE:
         raise ErrorEntrada(f"Salida de cable '{d.salida_cable}' desconocida. Opciones: {', '.join(SALIDAS_CABLE)}.")
     if d.fijacion not in FIJACIONES:
