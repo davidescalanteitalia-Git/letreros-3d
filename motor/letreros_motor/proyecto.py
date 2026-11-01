@@ -258,11 +258,11 @@ def exportar(proyecto: Proyecto, carpeta: str | Path, comprimir: bool = False) -
             {"archivo": p.archivo, "caracter": p.letra.caracter, "rol": p.rol,
              "medidas_mm": _medidas(p.malla), "volumen_cm3": round(p.volumen_cm3, 2),
              "peso_g": round(p.peso_g, 1), "triangulos": int(len(p.malla.faces)),
-             "parte": p.parte, "material": p.material, "impresion": instrucciones(d.estructura, p.rol)}
+             "parte": p.parte, "material": p.material, "color": p.color, "impresion": instrucciones(d.estructura, p.rol)}
             for p in proyecto.piezas
         ],
         "camas": [
-            {"archivo": f"camas/{c.archivo}", "numero": c.numero, "material": c.material,
+            {"archivo": f"camas/{c.archivo}", "numero": c.numero, "material": c.material, "color": c.color,
              "peso_g": round(c.peso_g, 1), "tiempo_min": round(_seg_cama(c) / 60),
              "piezas": [{"archivo": col.pieza.archivo, "x_mm": round(col.x, 1), "y_mm": round(col.y, 1),
                          "ancho_mm": round(col.ancho, 1), "alto_mm": round(col.alto, 1)} for col in c.colocaciones]}
@@ -298,7 +298,9 @@ def _leeme(proyecto: Proyecto, ficha: dict) -> str:
     partes += ["", "CAMAS DE IMPRESIÓN (carpeta camas/: ábrelas en Bambu Studio, ya vienen colocadas)"]
     from .camas import NOMBRE_MATERIAL
     for c in ficha["camas"]:
-        partes.append(f"  {c['archivo']:<30} {len(c['piezas'])} pieza(s) · {c['peso_g']:.0f} g · ≈ {c['tiempo_min'] // 60} h {c['tiempo_min'] % 60:02d} min · {NOMBRE_MATERIAL[c['material']]}")
+        from .camas import nombre_color
+        col = f" · filamento {nombre_color(c['color'])} ({c['color']})" if c.get("color") else ""
+        partes.append(f"  {c['archivo']:<38} {len(c['piezas'])} pieza(s) · {c['peso_g']:.0f} g · ≈ {c['tiempo_min'] // 60} h {c['tiempo_min'] % 60:02d} min{col} · {NOMBRE_MATERIAL[c['material']]}")
     partes.append("  Tiempos estimados (±30 %); Bambu Studio da el tiempo exacto al laminar.")
     from .impresion import AJUSTES_A2L_PETG
     partes += ["", "AJUSTES RECOMENDADOS EN BAMBU STUDIO (A2L + PETG)"]
@@ -368,6 +370,13 @@ def _leeme(proyecto: Proyecto, ficha: dict) -> str:
         partes.append("  Las tapas van desplazadas: cada una pisa la junta siguiente y traba las dos piezas.")
     partes += ["", "CONTORNOS: contornos.dxf (mm, 1:1, en posición de montaje). Capa LETRAS para cortar a láser "
                "el frente de metacrilato (estructura caja) o vinilo; CORTES y CABLE como referencia."]
+    if d.canto != "recto" or d.reborde > 0:
+        acab = []
+        if d.canto != "recto":
+            acab.append(f"canto {'en chaflán' if d.canto == 'chaflan' else 'redondeado'} de {d.canto_mm:g} mm (impreso por capas, sin soportes)")
+        if d.reborde > 0:
+            acab.append(f"frente con reborde de {d.reborde:g} mm sobre las paredes")
+        partes += ["", "ACABADO: " + "; ".join(acab) + "."]
     if d.estructura == "frontal":
         partes += ["", f"Frente a presión con holgura {d.holgura:g} mm: calibrar antes con `python -m letreros_motor probeta`."]
     if d.estructura == "halo":

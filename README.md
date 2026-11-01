@@ -2,7 +2,7 @@
 
 Aplicación propia para diseño y futura fabricación de letreros corpóreos impresos en 3D.
 
-## Estado actual (v0.9)
+## Estado actual (v0.10)
 **Web + motor en un solo contenedor.** `letreros.d4digitalstudio.it` sirve el editor (`index.html`) y la API del motor (`servidor/app.py`, FastAPI):
 - Diseñar: texto, fuente, medidas, estructura; guardar/abrir proyecto JSON; boceto SVG.
 - **Fabricar STL**: comprobar el diseño (medidas reales, peso PETG, metros de LED, avisos por letra), **visor 3D de la geometría real** (vista explotada, corte, luz encendida), descargar todas las piezas en ZIP (STL por pieza + `LEEME.txt` con montaje + `ficha.json`) y la probeta de holguras.
@@ -14,6 +14,8 @@ Aplicación propia para diseño y futura fabricación de letreros corpóreos imp
 - **Camas listas para Bambu Studio**: el ZIP trae `camas/cama-NN-opaco.3mf` y `…-difusor.3mf` con las piezas ya colocadas y separadas por filamento; el visor 3D tiene «Ver camas de impresión».
 - **Contornos DXF 1:1** (`contornos.dxf`, mm) para cortar a láser el frente de metacrilato de la caja, vinilo o plantillas.
 - **Plantilla de montaje 1:1** (`plantilla-montaje.svg`) y **presupuesto** de filamento y LED.
+- **Acabados y colores** (v0.10): canto visible recto, en chaflán o redondeado (impreso por capas, sin soportes), reborde del frente sobre las paredes, color del cuerpo, del frente y de la luz. Las camas 3MF salen separadas por material **y color** (cama-01-opaco-rojo.3mf…) y el LEEME dice qué filamento poner en cada una.
+- **Estilos rápidos** (v0.10): un clic aplica estructura, colores y acabado (clásico, moldura roja, halo dorado, neón rosa/azul, lateral iluminado, caja de luz café, maciza dorada) y puedes **guardar tus propios estilos** en el navegador.
 - **Vista 3D en vivo** (v0.9) en la pantalla de diseño: al cambiar texto, fuente, medidas, estructura o logo, la geometría real se actualiza sola (con pausa de ~1 s; interruptor «3D en vivo»).
 - **Logotipos SVG o DXF** (v0.9): sube el logo del negocio y se fabrica con la misma estructura que las letras (hueco con luz, neón, maciza…). Alto, posición (izquierda, derecha, encima, debajo) y separación; también logo solo, sin texto. El proyecto JSON guarda el logo.
 - **Tiempo de impresión estimado** por cama y total, y **ajustes recomendados de Bambu Studio** (A2L + PETG) en el LEEME.

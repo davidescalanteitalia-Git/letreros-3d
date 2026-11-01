@@ -41,15 +41,32 @@ class Colocacion:
     girada: bool = False
 
 
+COLORES = {  # nombres de filamento habituales, para el nombre de archivo y el LEEME
+    "negro": (25, 25, 25), "blanco": (242, 242, 242), "gris": (128, 128, 128), "rojo": (200, 30, 30),
+    "naranja": (240, 120, 20), "amarillo": (245, 200, 30), "verde": (40, 150, 60), "azul": (30, 80, 180),
+    "celeste": (90, 170, 230), "morado": (120, 60, 160), "rosa": (235, 100, 170), "dorado": (200, 160, 60),
+    "plateado": (190, 190, 195), "marron": (110, 70, 40), "beige": (220, 200, 160), "turquesa": (40, 180, 170),
+}
+
+
+def nombre_color(hexa: str) -> str:
+    if not hexa or len(hexa) != 7:
+        return ""
+    r, g, b = (int(hexa[i:i + 2], 16) for i in (1, 3, 5))
+    return min(COLORES, key=lambda n: sum((a - b_) ** 2 for a, b_ in zip(COLORES[n], (r, g, b))))
+
+
 @dataclass
 class Cama:
     numero: int
     material: str
     colocaciones: list[Colocacion] = field(default_factory=list)
+    color: str = ""
 
     @property
     def archivo(self) -> str:
-        return f"cama-{self.numero:02d}-{self.material}.3mf"
+        sufijo = f"-{nombre_color(self.color)}" if self.color else ""
+        return f"cama-{self.numero:02d}-{self.material}{sufijo}.3mf"
 
     @property
     def peso_g(self) -> float:
@@ -98,10 +115,16 @@ def distribuir(piezas, cama, separacion: float = SEPARACION) -> list[Cama]:
     """Reparte las piezas en camas por material. `cama` = (x, y, z) útil en mm."""
     cx, cy = float(cama[0]), float(cama[1])
     camas: list[Cama] = []
-    for mat in ("opaco", "difusor"):
+    grupos = []
+    for p in piezas:
+        clave = (material(p), getattr(p, "color", "") or "")
+        if clave not in grupos:
+            grupos.append(clave)
+    grupos.sort(key=lambda g: (g[0] != "opaco", g[1]))
+    for mat, color in grupos:
         items = []
         for p in piezas:
-            if material(p) != mat:
+            if material(p) != mat or (getattr(p, "color", "") or "") != color:
                 continue
             m, w, h = _alinear(p.malla, cx, cy)
             girada = False
@@ -127,7 +150,7 @@ def distribuir(piezas, cama, separacion: float = SEPARACION) -> list[Cama]:
                     sitio = (c, 0.0, y_libre)
                     break
             if sitio is None:
-                c = Cama(0, mat)
+                c = Cama(0, mat, color=color)
                 abiertas.append((c, [[0.0, h, w + separacion]]))
                 sitio = (c, 0.0, 0.0)
             c, x, y = sitio

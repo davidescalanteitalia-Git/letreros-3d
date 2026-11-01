@@ -4,7 +4,7 @@
 Letreros 3D Studio, software independiente de rotulación y producción FDM. Usuario final de habla española. Repositorio: davidescalanteitalia-Git/letreros-3d, rama main. Sitio publicado: https://letreros.d4digitalstudio.it. Infraestructura: Coolify alojado en Hetzner; DNS mediante Cloudflare. No asumir que Claude tenga acceso a esos servicios o sus tokens.
 
 ## REALIDAD VERIFICADA (2026-10-25)
-- `index.html` v0.9: editor en español + pestaña Fabricar STL conectada a la API (comprobar, visor 3D three.js con geometría real, ZIP de piezas, probeta). Vista SVG sigue siendo ilustrativa.
+- `index.html` v0.10: editor en español + pestaña Fabricar STL conectada a la API (comprobar, visor 3D three.js con geometría real, ZIP de piezas, probeta). Vista SVG sigue siendo ilustrativa.
 - `servidor/`: FastAPI que sirve index.html y la API (/api/salud, /api/opciones, /api/comprobar, /api/modelo, /api/letrero, /api/probeta); clave opcional LETREROS_CLAVE, límites de tamaño/tiempo/IP, CSP. three.js 0.170 local en servidor/estaticos/vendor (MIT).
 - `Dockerfile`: python:3.13-slim, usuario no root, uvicorn en puerto 80, healthcheck /api/salud. Misma configuración de Coolify que antes.
 - `docs/`: análisis comparativo y roadmaps; no equivale a código desarrollado.
@@ -18,6 +18,7 @@ Letreros 3D Studio, software independiente de rotulación y producción FDM. Usu
 - v0.8 (motor 0.6.0, rama feat/v08-piezas-unidas): letras_por_pieza (cortes forzados por grupos de letras, nombres ap/er/to, empalmes ap+er), tapas desplazadas que traban la junta, salida_cable inicio/fin (un solo agujero; puentes con hueco para cable).
 - v0.8 publicada el 2026-11-01 (PR #5 fusionado y Redeploy en Coolify, verificado motor 0.6.0 en producción).
 - v0.9 (motor 0.7.0, rama feat/v09-logos-vista-viva): logos SVG/DXF (logos.py, svgelements + ezdxf; /api/logo con caché en memoria y logo_id), vista 3D en vivo en Diseñar (debounce 900 ms, cupo propio del visor ×4), tiempo de impresión estimado (impresion.py) y ajustes Bambu recomendados en LEEME. 3MF con perfil Bambu embebido: pendiente de probar en Bambu Studio real.
+- v0.10 (motor 0.8.0, rama feat/v10-acabados-variantes, incluye v0.9): canto chaflán/redondeado por capas (estructuras.cara), reborde del frente, colores por pieza (Pieza.color) y camas por material+color; estilos rápidos y «mis estilos» (localStorage) en la web; luz del visor con color_luz.
 - No existe aún: base de datos ni cuentas; 3MF con perfil de Bambu embebido.
 
 ## Trabajo esperado
