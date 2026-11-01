@@ -46,7 +46,11 @@ def main(argv: list[str] | None = None) -> int:
 
     pl = sub.add_parser("letrero", help="generar todas las piezas de un letrero",
                         description="Estructuras: " + " | ".join(f"{k}: {v}" for k, v in ESTRUCTURAS.items()))
-    pl.add_argument("texto", help='texto en una línea, p. ej. "LUCY"')
+    pl.add_argument("texto", help='texto, p. ej. "LUCY"; varias líneas con \\n: "LUCY\\nHAIR"')
+    pl.add_argument("--alineacion", choices=["centro", "izquierda", "derecha"], default="centro",
+                    help="varias líneas: alineación. Def. centro")
+    pl.add_argument("--interlineado", type=float, default=1.4,
+                    help="varias líneas: distancia entre bases × altura (1–3). Def. 1.4")
     pl.add_argument("--estructura", choices=list(ESTRUCTURAS), default="frontal")
     _parametros_comunes(pl)
     pl.add_argument("--espaciado", type=float, default=0.0, help="mm extra entre letras. Def. 0")
@@ -67,6 +71,20 @@ def main(argv: list[str] | None = None) -> int:
     pl.add_argument("--no-dividir", action="store_true", help="error en vez de dividir lo que no cabe en la cama")
     pl.add_argument("--precio-kg", type=float, default=25.0, help="€/kg de filamento para el presupuesto")
     pl.add_argument("--precio-led-m", type=float, default=0.0, help="€/m de tira LED para el presupuesto")
+    pl.add_argument("--letras-por-pieza", type=int, default=0,
+                    help="unidas: piezas de N letras con uniones entre ellas (0 = toda la palabra)")
+    pl.add_argument("--salida-cable", choices=["cada_pieza", "inicio", "fin"], default="cada_pieza",
+                    help="una sola salida de cable al principio o al final (cable por dentro de los puentes)")
+    g2 = pl.add_argument_group("luz, neón, caja de luz y fijación (v0.7)")
+    g2.add_argument("--fijacion", choices=["ninguna", "insertos", "pasantes"], default="ninguna",
+                    help="torretas para inserto M4 o agujeros pasantes avellanados. Def. ninguna")
+    g2.add_argument("--tension", type=float, choices=[5, 12, 24], default=12, help="V de la tira. Def. 12")
+    g2.add_argument("--paso-led", type=float, default=0.0, help="separación entre filas de LED (0 = automática)")
+    g2.add_argument("--neon-ancho", type=float, default=6.0, help="neón flex: ancho del perfil. Def. 6")
+    g2.add_argument("--neon-alto", type=float, default=12.0, help="neón flex: alto del perfil. Def. 12")
+    g2.add_argument("--neon-borde", type=float, default=6.0, help="neón: base alrededor del canal. Def. 6")
+    g2.add_argument("--mascara", type=float, default=1.2, help="caja de luz: grosor de la máscara. Def. 1.2")
+    g2.add_argument("--repisa", type=float, default=3.0, help="caja de luz: galce de la cara. Def. 3")
     pl.add_argument("--zip", action="store_true", help="además, comprimir la carpeta en .zip")
     pl.add_argument("-o", "--salida", required=True, help="carpeta de salida (nueva o vacía)")
 
@@ -88,7 +106,11 @@ def main(argv: list[str] | None = None) -> int:
                    fuente=a.fuente)
     try:
         if a.cmd == "letrero":
-            d = Diseno(a.texto, estructura=a.estructura, espaciado=a.espaciado, tira_led=a.tira_led,
+            d = Diseno(a.texto.replace("\\n", "\n"), estructura=a.estructura,
+                       alineacion=a.alineacion, interlineado=a.interlineado, fijacion=a.fijacion,
+                       letras_por_pieza=a.letras_por_pieza, salida_cable=a.salida_cable,
+                       tension=a.tension, paso_led=a.paso_led, neon_ancho=a.neon_ancho, neon_alto=a.neon_alto,
+                       neon_borde=a.neon_borde, mascara=a.mascara, repisa=a.repisa, espaciado=a.espaciado, tira_led=a.tira_led,
                        w_por_metro=a.w_por_metro, cable=a.cable, drenaje=a.drenaje,
                        separacion=a.separacion, tornillo=a.tornillo, conjunto=a.conjunto, puente=a.puente,
                        barra=a.barra, placa_forma=a.placa_forma, placa_margen=a.placa_margen,

@@ -16,13 +16,12 @@ ESTILO_A_ESTRUCTURA = {
     "halo": "halo",
     "box": "caja",
     "solid": "maciza",
-    "neon": None,
-    "dual": None,
-    "frontsolid": None,
+    "neon": "neon",
+    "dual": "doble",
+    "frontsolid": "lateral",
+    "lightbox": "caja_luz",
 }
-NOMBRES_ESTILO = {
-    "neon": "Neón flex", "dual": "Doble iluminación", "frontsolid": "Frente opaco con cuerpo iluminado",
-}
+NOMBRES_ESTILO: dict[str, str] = {}
 # Fuentes del editor con contornos verificados para fabricar (las 10 del selector).
 from .fuentes import POR_FAMILIA_WEB as FUENTES_WEB  # noqa: E402
 
@@ -36,8 +35,13 @@ CAMPOS_EXTRA = {
     "cable": "cable", "separacion": "separacion", "tornillo": "tornillo",
     "puente": "puente", "barra": "barra", "placa_margen": "placa_margen", "placa_grosor": "placa_grosor",
     "placa_agujero": "placa_agujero", "precio_kg": "precio_kg", "precio_led_m": "precio_led_m",
+    "paso_led": "paso_led", "neon_ancho": "neon_ancho", "neon_alto": "neon_alto", "neon_borde": "neon_borde",
+    "mascara": "mascara", "repisa": "repisa", "tension": "tension", "letras_por_pieza": "letras_por_pieza",
 }
 LIMITE_TEXTO_CAMPO = 100
+
+
+LIMITE_TEXTO_LETRERO = 200  # varias líneas
 
 
 def _texto(datos: dict, clave: str, defecto: str = "") -> str:
@@ -46,7 +50,7 @@ def _texto(datos: dict, clave: str, defecto: str = "") -> str:
         return defecto
     if not isinstance(v, (str, int, float, bool)):
         raise ErrorEntrada(f"Campo '{clave}' con formato no válido.")
-    return str(v)[:LIMITE_TEXTO_CAMPO]
+    return str(v)[:LIMITE_TEXTO_LETRERO if clave == "letters" else LIMITE_TEXTO_CAMPO]
 
 
 def _numero(datos: dict, clave: str, nombre: str):
@@ -94,6 +98,18 @@ def diseno_desde_web(datos: dict) -> Diseno:
     if layout not in LAYOUT_A_CONJUNTO:
         raise ErrorEntrada(f"Construcción del conjunto '{layout}' desconocida.")
     kwargs["conjunto"] = LAYOUT_A_CONJUNTO[layout]
+    v = _numero(datos, "interlineado", "Interlineado")
+    if v is not None:
+        kwargs["interlineado"] = v
+    alineacion = _texto(datos, "alineacion", "centro")
+    if alineacion:
+        kwargs["alineacion"] = alineacion
+    salida = _texto(datos, "salida_cable", "cada_pieza")
+    if salida:
+        kwargs["salida_cable"] = salida
+    fijacion = _texto(datos, "fijacion", "ninguna")
+    if fijacion:
+        kwargs["fijacion"] = fijacion
     forma_placa = _texto(datos, "placa_forma", "rect")
     if forma_placa:
         kwargs["placa_forma"] = forma_placa

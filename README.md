@@ -2,15 +2,22 @@
 
 Aplicación propia para diseño y futura fabricación de letreros corpóreos impresos en 3D.
 
-## Estado actual (v0.5)
+## Estado actual (v0.8)
 **Web + motor en un solo contenedor.** `letreros.d4digitalstudio.it` sirve el editor (`index.html`) y la API del motor (`servidor/app.py`, FastAPI):
 - Diseñar: texto, fuente, medidas, estructura; guardar/abrir proyecto JSON; boceto SVG.
 - **Fabricar STL**: comprobar el diseño (medidas reales, peso PETG, metros de LED, avisos por letra), **visor 3D de la geometría real** (vista explotada, corte, luz encendida), descargar todas las piezas en ZIP (STL por pieza + `LEEME.txt` con montaje + `ficha.json`) y la probeta de holguras.
 - **10 fuentes fabricables** (OFL): Montserrat, Poppins, Roboto, Oswald, Bebas Neue, Playfair Display, Lobster, Pacifico, Dancing Script y Great Vibes. Composición con **HarfBuzz**: kerning, ligaduras y enlaces de las manuscritas.
 - **Construcción del conjunto**: letras sueltas · **unidas** (una pieza por palabra con puentes automáticos y barra inferior opcional) · **sobre placa común** (rectangular o silueta, siluetas grabadas para pegar cada letra, agujeros de fijación y de cable).
 - **División automática por cama**: lo que no cabe se corta en vertical por los puntos más estrechos; macizas con cola de milano, huecas con placa de empalme interior; partes A, B, C….
+- **Varias líneas** (hasta 4, alineación izquierda/centro/derecha e interlineado).
+- **División en rejilla**: también en horizontal cuando la pieza es más alta que la cama (partes A1, B1, A2…; empalmes A1A2…).
+- **Camas listas para Bambu Studio**: el ZIP trae `camas/cama-NN-opaco.3mf` y `…-difusor.3mf` con las piezas ya colocadas y separadas por filamento; el visor 3D tiene «Ver camas de impresión».
+- **Contornos DXF 1:1** (`contornos.dxf`, mm) para cortar a láser el frente de metacrilato de la caja, vinilo o plantillas.
 - **Plantilla de montaje 1:1** (`plantilla-montaje.svg`) y **presupuesto** de filamento y LED.
-- Estructuras: frontal (frente a presión), halo (separadores), caja y maciza. Neón, doble luz, frente opaco, acrílico/DXF y varias líneas: próximas versiones.
+- **Letras unidas por piezas** (v0.8): elige cuántas letras lleva cada pieza (p. ej. «aperto» → ap · er · to). Las piezas se unen con cola de milano (macizas) o placa de empalme interior + **tapas desplazadas** que cruzan la junta (huecas); el cable pasa por dentro de los puentes y sale por **un solo agujero** al principio o al final.
+- **8 estructuras**: frontal (frente a presión), halo (separadores), caja, maciza, **lateral iluminado** (frente opaco, cuerpo translúcido), **doble luz** (frente y trasera translúcidos, separadores metálicos), **neón flex** (base o placa común con canal a la medida del neón) y **caja de luz** (caja con galce, guías de tira, colgadores; difusor con letras en relieve + máscara calada a ras).
+- **Luz e instalación**: filas de LED según la distancia a la cara, metros por letra, consumo, amperios, fuente con 20 % de margen y puntos de alimentación (con los W/m de tu tira).
+- **Fijaciones**: torretas para inserto roscado M4, agujeros pasantes avellanados o colgadores, marcados en la plantilla de taladro.
 
 El motor también se usa sin web desde PowerShell: ver `motor/README.md`.
 
@@ -40,5 +47,6 @@ React + TypeScript + Three.js en frontend; FastAPI + motor CAD para export STL, 
 ## Pendiente
 - Imprimir la probeta de holguras en PETG y fijar el valor por defecto real.
 - Verificar en Bambu Studio y en pieza física las estructuras frontal y halo.
-- Probar en pieza física la cola de milano y la placa de empalme; división horizontal para letras más altas que la cama; varias líneas.
-- Acrílico + DXF, neón flex y doble luz.
+- Probar en pieza física la cola de milano, la placa de empalme y la rejilla; abrir las camas 3MF en Bambu Studio.
+- Probar en pieza física: neón en su canal, caja de luz (encaje máscara/difusor), torretas de inserto.
+- Logotipos SVG.

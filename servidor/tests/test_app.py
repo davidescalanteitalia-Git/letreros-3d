@@ -32,7 +32,7 @@ def test_portada_y_cabeceras(cliente):
 def test_salud_y_opciones(cliente):
     assert cliente.get("/api/salud").json()["ok"] is True
     o = cliente.get("/api/opciones").json()
-    assert set(o["estilos_fabricables"]) == {"front", "halo", "box", "solid"}
+    assert set(o["estilos_fabricables"]) == {"front", "halo", "box", "solid", "frontsolid", "dual", "neon", "lightbox"}
     assert len(o["fuentes_fabricables"]) == 10 and "Pacifico" in o["fuentes_fabricables"]
     assert o["protegido"] is False
 
@@ -74,13 +74,14 @@ def test_probeta(cliente):
 
 
 @pytest.mark.parametrize("cambio, texto", [
-    ({"style": "neon"}, "aún no se fabrica"),
+    ({"style": "laser"}, "desconocida"),
     ({"font": "Comic Sans"}, "no está entre las fuentes fabricables"),
     ({"height": "5000"}, "Altura"),
     ({"wall": "abc"}, "no es un número"),
     ({"letters": ""}, "vacío"),
     ({"schema_version": 2}, "versión"),
-    ({"letters": "WWWW", "height": "400"}, "alto"),
+    ({"letters": "A\nB\nC\nD\nE"}, "líneas"),
+    ({"letters": "A\nB", "alineacion": "justificada"}, "Alineación"),
 ])
 def test_errores_claros(cliente, cambio, texto):
     r = cliente.post("/api/comprobar", json={**PROYECTO, **cambio})
@@ -145,3 +146,58 @@ def test_v05_unidas_placa_y_division(cliente):
     m = cliente.post("/api/modelo", json={**PROYECTO, "letters": "W", "height": "250"}).json()
     roles = {(p["parte"], p["rol"]) for p in m["piezas"]}
     assert ("AB", "empalme") in roles and ("A", "cuerpo") in roles and ("B", "frente") in roles
+
+
+def test_v06_lineas_camas_y_3mf(cliente):
+    datos = {**PROYECTO, "letters": "LU\nCY", "height": "80", "alineacion": "izquierda", "interlineado": "1.3"}
+    d = cliente.post("/api/comprobar", json=datos).json()
+    assert len(d["piezas"]) == 8 and all(p["cama"] >= 1 for p in d["piezas"])
+    assert {c["material"] for c in d["camas"]} == {"opaco", "difusor"}
+    r = cliente.post("/api/letrero", json=datos)
+    z = zipfile.ZipFile(io.BytesIO(r.content))
+    assert 'filename="LU-CY-frontal.zip"' in r.headers["content-disposition"]
+    nombres = z.namelist()
+    assert "LU-CY-frontal/contornos.dxf" in nombres
+    assert any(n.startswith("LU-CY-frontal/camas/") and n.endswith(".3mf") for n in nombres)
+
+
+def test_v06_visor_camas_y_division_horizontal(cliente):
+    import numpy as np
+    m = cliente.post("/api/modelo", json={**PROYECTO, "letters": "I", "height": "450"}).json()
+    roles = {(p["parte"], p["rol"]) for p in m["piezas"]}
+    assert ("12", "empalme") in roles and ("2", "frente") in roles
+    for p in m["piezas"]:
+        M = np.array(p["m_cama"]).reshape(4, 4).T
+        assert M.shape == (4, 4) and p["cama"] >= 1
+        assert abs(abs(np.linalg.det(M[:3, :3])) - 1) < 1e-4  # giro (o reflejo del frente), sin escala
+
+
+@pytest.mark.parametrize("estilo, roles", [
+    ("frontsolid", {"cuerpo", "frente"}), ("dual", {"cuerpo", "frente", "trasera"}),
+    ("neon", {"base"}), ("lightbox", {"cuerpo", "difusor", "mascara"}),
+])
+def test_v07_estructuras_nuevas(cliente, estilo, roles):
+    datos = {**PROYECTO, "letters": "LU", "height": "70", "style": estilo,
+             "depth": {"neon": "10", "lightbox": "60"}.get(estilo, "40"), "fijacion": "pasantes", "w_por_metro": "9.6"}
+    d = cliente.post("/api/comprobar", json=datos)
+    assert d.status_code == 200, d.text
+    assert {p["rol"] for p in d.json()["piezas"]} == roles
+
+
+def test_v07_visor_neon_y_poses(cliente):
+    import base64
+
+    import numpy as np
+    m = cliente.post("/api/modelo", json={**PROYECTO, "letters": "O", "height": "80", "style": "neon", "depth": "10"}).json()
+    assert m["visuales"] and m["visuales"][0]["rol"] == "neon"
+    m = cliente.post("/api/modelo", json={**PROYECTO, "letters": "O", "height": "80", "style": "dual"}).json()
+    tras = next(p for p in m["piezas"] if p["rol"] == "trasera")
+    v = np.frombuffer(base64.b64decode(tras["v"]), dtype=np.float32).reshape(-1, 3)
+    assert v[:, 2].min() == pytest.approx(0, abs=1e-3) and tras["material"] == "difusor"
+
+
+def test_v07_errores(cliente):
+    r = cliente.post("/api/comprobar", json={**PROYECTO, "style": "neon", "depth": "40"})
+    assert r.status_code == 422 and "Neón" in r.json()["error"]
+    r = cliente.post("/api/comprobar", json={**PROYECTO, "fijacion": "clavos"})
+    assert r.status_code == 422 and "Fijación" in r.json()["error"]

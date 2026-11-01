@@ -19,7 +19,7 @@ COPY servidor/estaticos servidor/estaticos
 COPY index.html .
 
 # Comprobación en la construcción: la fuente coincide con su SHA-256 y el motor genera una pieza.
-RUN python -c "import letreros_motor as m; p = m.generar_letrero(m.Diseno('A')); assert p.piezas[0].malla.is_watertight" \
+RUN python -c "import letreros_motor as m, tempfile; p = m.generar_letrero(m.Diseno('A')); assert p.piezas[0].malla.is_watertight; m.exportar(p, tempfile.mkdtemp() + '/A', comprimir=True)" \
  && useradd --system --uid 10001 --no-create-home letreros
 USER letreros
 
