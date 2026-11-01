@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 100" width="200mm" height="100mm">
+  <!-- anillo (agujero por par-impar), estrella con transformación, rectángulo redondeado y un trazo sin relleno -->
+  <path fill="#000" fill-rule="evenodd" d="M50 10 A40 40 0 1 1 49.9 10 Z M50 30 A20 20 0 1 0 50.1 30 Z"/>
+  <g transform="translate(110 10) scale(0.8)">
+    <polygon fill="#c00" points="50,0 61,35 98,35 68,57 79,91 50,70 21,91 32,57 2,35 39,35"/>
+  </g>
+  <rect fill="#333" x="10" y="92" width="180" height="6" rx="3"/>
+  <line x1="0" y1="0" x2="200" y2="0" stroke="#000" fill="none"/>
+</svg>

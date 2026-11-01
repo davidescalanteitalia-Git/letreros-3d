@@ -35,6 +35,8 @@ from letreros_motor.web import ESTILO_A_ESTRUCTURA, FUENTES_WEB, diseno_desde_we
 RAIZ = Path(__file__).resolve().parent.parent
 INDEX = RAIZ / "index.html"
 MAX_CUERPO = 20_000  # bytes de JSON por petición
+MAX_LOGO = 900_000  # bytes de la petición que sube un logo (SVG/DXF en texto)
+LOGOS_MAX = 64  # logos recordados en memoria (el navegador lo vuelve a subir si se pierde)
 TIEMPO_MAX = 90  # s por trabajo
 TRIANGULOS_VISOR_MAX = 600_000
 VENDOR = Path(__file__).resolve().parent / "estaticos" / "vendor"
@@ -43,6 +45,9 @@ CLAVE = os.getenv("LETREROS_CLAVE", "")
 SEMAFORO = asyncio.Semaphore(max(1, int(os.getenv("LETREROS_CONCURRENCIA", "2"))))
 LIMITE_MIN = max(1, int(os.getenv("LETREROS_PETICIONES_MIN", "30")))
 _historial: dict[str, deque] = defaultdict(deque)
+_historial_visor: dict[str, deque] = defaultdict(deque)
+from collections import OrderedDict  # noqa: E402
+_logos: "OrderedDict[str, object]" = OrderedDict()
 
 CABECERAS = {
     "X-Content-Type-Options": "nosniff",
@@ -84,18 +89,19 @@ def _ip(request: Request) -> str:
     return xff.split(",")[-1].strip() if xff else (request.client.host if request.client else "?")
 
 
-async def _leer_proyecto(request: Request) -> dict:
+async def _leer_proyecto(request: Request, visor: bool = False, maximo: int = MAX_CUERPO) -> dict:
     if CLAVE and not secrets.compare_digest(request.headers.get("x-clave", ""), CLAVE):
         raise ErrorPeticion(401, "Clave incorrecta o ausente.")
     ip, ahora = _ip(request), time.monotonic()
-    marcas = _historial[ip]
+    # La vista 3D en vivo pide modelos al teclear: tiene su propio cupo, más amplio.
+    marcas, limite = (_historial_visor[ip], LIMITE_MIN * 4) if visor else (_historial[ip], LIMITE_MIN)
     while marcas and ahora - marcas[0] > 60:
         marcas.popleft()
-    if len(marcas) >= LIMITE_MIN:
+    if len(marcas) >= limite:
         raise ErrorPeticion(429, "Demasiadas peticiones; espera un minuto.")
     marcas.append(ahora)
     cuerpo = await request.body()
-    if len(cuerpo) > MAX_CUERPO:
+    if len(cuerpo) > maximo:
         raise ErrorPeticion(413, "Proyecto demasiado grande.")
     try:
         datos = json.loads(cuerpo or b"{}")
@@ -116,6 +122,27 @@ async def _trabajo(funcion, *args):
             raise ErrorPeticion(422, str(e)) from None
         except lm.ErrorGeometria as e:
             raise ErrorPeticion(500, f"Error de geometría: {e}") from None
+
+
+def _logo_de(datos: dict):
+    """Silueta del logo de la petición (o None). El logo se sube antes con /api/logo."""
+    ident = datos.get("logo_id")
+    if not ident:
+        return None
+    if not isinstance(ident, str) or not re.fullmatch(r"[0-9a-f]{16,64}", ident):
+        raise lm.ErrorEntrada("Identificador de logo no válido.")
+    logo = _logos.get(ident)
+    if logo is None:
+        raise lm.ErrorEntrada("El logo ya no está en el servidor; vuelve a subirlo.")
+    _logos.move_to_end(ident)
+    return logo
+
+
+def _generar(datos: dict, **cambios):
+    d = diseno_desde_web(datos)
+    if cambios:
+        d = replace(d, **cambios)
+    return lm.generar_letrero(d, _logo_de(datos))
 
 
 def _slug(texto: str) -> str:
@@ -150,13 +177,14 @@ def _informe(proyecto: lm.Proyecto) -> dict:
         "metros_led": round(proyecto.metros_led, 2),
         "estructura": proyecto.diseno.estructura,
         "costes": proyecto.costes(),
+        "impresion_h": round(proyecto.horas_impresion(), 2),
     }
 
 
 def _modelo(datos: dict) -> dict:
     d = diseno_desde_web(datos)
     d = replace(d, tolerancia=max(d.tolerancia, 0.12))  # vista algo más ligera que la fabricación
-    proyecto = lm.generar_letrero(d)
+    proyecto = lm.generar_letrero(d, _logo_de(datos))
     if sum(len(p.malla.faces) for p in proyecto.piezas) > TRIANGULOS_VISOR_MAX:
         raise lm.ErrorEntrada("Demasiado detalle para el visor; reduce el texto.")
     piezas, minimo, maximo = [], np.full(3, np.inf), np.full(3, -np.inf)
@@ -230,13 +258,13 @@ def opciones():
 @app.post("/api/comprobar")
 async def comprobar(request: Request):
     datos = await _leer_proyecto(request)
-    proyecto = await _trabajo(lambda: lm.generar_letrero(diseno_desde_web(datos)))
+    proyecto = await _trabajo(_generar, datos)
     return _informe(proyecto)
 
 
 @app.post("/api/modelo")
 async def modelo(request: Request):
-    datos = await _leer_proyecto(request)
+    datos = await _leer_proyecto(request, visor=True)
     return await _trabajo(_modelo, datos)
 
 
@@ -246,11 +274,33 @@ async def letrero(request: Request):
 
     def tarea():
         d = diseno_desde_web(datos)
-        nombre = f"{_slug(d.texto)}-{d.estructura}"
-        return _zip(lm.generar_letrero(d), nombre), nombre
+        nombre = f"{_slug(d.texto) if d.texto.strip() else 'logo'}-{d.estructura}"
+        return _zip(lm.generar_letrero(d, _logo_de(datos)), nombre), nombre
 
     contenido, nombre = await _trabajo(tarea)
     return _descarga(contenido, nombre)
+
+
+@app.post("/api/logo")
+async def subir_logo(request: Request):
+    """Recibe {nombre, contenido} (SVG o DXF en texto) y devuelve un id y la miniatura."""
+    import hashlib
+
+    from letreros_motor.logos import leer_logo, logo_a_svg, proporcion
+    datos = await _leer_proyecto(request, maximo=MAX_LOGO)
+    nombre, contenido = datos.get("nombre", ""), datos.get("contenido", "")
+    if not isinstance(nombre, str) or not isinstance(contenido, str) or not contenido:
+        raise ErrorPeticion(400, "Falta el archivo del logo.")
+    if not nombre.lower().endswith((".svg", ".dxf")):
+        raise ErrorPeticion(422, "El logo debe ser un archivo .svg o .dxf.")
+    forma, avisos = await _trabajo(leer_logo, contenido, nombre)
+    ident = hashlib.sha256(contenido.encode("utf-8")).hexdigest()[:24]
+    _logos[ident] = forma
+    _logos.move_to_end(ident)
+    while len(_logos) > LOGOS_MAX:
+        _logos.popitem(last=False)
+    return {"id": ident, "proporcion": round(proporcion(forma), 4), "partes": len(forma.geoms),
+            "svg": logo_a_svg(forma.simplify(0.002)), "avisos": avisos}
 
 
 @app.post("/api/probeta")

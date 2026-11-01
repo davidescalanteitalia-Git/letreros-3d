@@ -18,6 +18,7 @@ PROYECTO = {
 @pytest.fixture()
 def cliente(monkeypatch):
     modulo._historial.clear()
+    modulo._historial_visor.clear()
     monkeypatch.setattr(modulo, "CLAVE", "")
     return TestClient(modulo.app)
 
@@ -201,3 +202,37 @@ def test_v07_errores(cliente):
     assert r.status_code == 422 and "Neón" in r.json()["error"]
     r = cliente.post("/api/comprobar", json={**PROYECTO, "fijacion": "clavos"})
     assert r.status_code == 422 and "Fijación" in r.json()["error"]
+
+
+def test_v09_logo_subir_y_usar(cliente):
+    from pathlib import Path
+    svg = (Path(__file__).resolve().parents[2] / "motor" / "tests" / "datos" / "logo.svg").read_text(encoding="utf-8")
+    r = cliente.post("/api/logo", json={"nombre": "logo.svg", "contenido": svg})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["partes"] == 3 and d["svg"].startswith("M") and d["proporcion"] > 1
+    datos = {**PROYECTO, "letters": "BAR", "height": "60", "logo_id": d["id"], "logo_altura": "70", "logo_posicion": "derecha"}
+    c = cliente.post("/api/comprobar", json=datos).json()
+    assert any(p["caracter"] == "logo" for p in c["piezas"])
+    m = cliente.post("/api/modelo", json=datos)
+    assert m.status_code == 200
+    z = cliente.post("/api/letrero", json={**datos, "letters": ""})
+    assert z.status_code == 200 and 'filename="logo-frontal.zip"' in z.headers["content-disposition"]
+
+
+def test_v09_logo_perdido_y_errores(cliente):
+    datos = {**PROYECTO, "logo_id": "0" * 24, "logo_altura": "50"}
+    r = cliente.post("/api/comprobar", json=datos)
+    assert r.status_code == 422 and "vuelve a subirlo" in r.json()["error"]
+    assert cliente.post("/api/logo", json={"nombre": "x.png", "contenido": "abc"}).status_code == 422
+    assert cliente.post("/api/logo", json={"nombre": "x.svg", "contenido": "<svg"}).status_code == 422
+    # sin logo_id la altura de logo se ignora
+    assert cliente.post("/api/comprobar", json={**PROYECTO, "logo_altura": "50"}).status_code == 200
+
+
+def test_v09_cupo_visor_separado(cliente, monkeypatch):
+    monkeypatch.setattr(modulo, "LIMITE_MIN", 1)
+    assert cliente.post("/api/comprobar", json={**PROYECTO, "letters": "I"}).status_code == 200
+    assert cliente.post("/api/comprobar", json={**PROYECTO, "letters": "I"}).status_code == 429
+    for _ in range(4):
+        assert cliente.post("/api/modelo", json={**PROYECTO, "letters": "I"}).status_code == 200

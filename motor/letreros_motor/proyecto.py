@@ -72,6 +72,10 @@ class Proyecto:
             self._camas = distribuir(self.piezas, self.diseno.cama)
         return self._camas
 
+    def horas_impresion(self) -> float:
+        from .impresion import segundos_cama
+        return sum(segundos_cama(c) for c in self.camas()) / 3600.0
+
     def costes(self) -> dict:
         d = self.diseno
         material = self.peso_g / 1000 * d.precio_kg
@@ -89,10 +93,11 @@ class Proyecto:
         minx, miny, maxx, maxy = self.medidas()
         from .conjunto import CONJUNTOS
         lineas = [
-            f"Letrero «{d.texto.replace(chr(10), ' / ')}» · {d.estructura} ({ESTRUCTURAS[d.estructura]})",
+            f"Letrero «{d.texto.replace(chr(10), ' / ') or 'logo'}»{' + logo' if d.logo_altura and d.texto.strip() else ''} · {d.estructura} ({ESTRUCTURAS[d.estructura]})",
             f"Fuente {obtener_fuente(d.fuente).nombre} · conjunto {d.conjunto} ({CONJUNTOS[d.conjunto]})",
             f"Mayúscula {d.altura:g} mm · conjunto {maxx - minx:.1f} × {maxy - miny:.1f} × {d.profundidad:g} mm",
-            f"Piezas: {len(self.piezas)} en {len(self.camas())} cama(s) de impresión · material ≈ {self.peso_g:.0f} g de PETG (sólido al 100 %; el laminador dará el dato real)",
+            f"Piezas: {len(self.piezas)} en {len(self.camas())} cama(s) de impresión"
+            f" · ≈ {_fmt_horas(self.horas_impresion())} de impresión · material ≈ {self.peso_g:.0f} g de PETG (sólido al 100 %; el laminador dará el dato real)",
         ]
         if self.metros_led:
             if d.estructura == "neon":
@@ -115,10 +120,26 @@ class Proyecto:
         return "\n".join(lineas)
 
 
-def generar_letrero(diseno: Diseno) -> Proyecto:
+def generar_letrero(diseno: Diseno, logo=None) -> Proyecto:
+    """Genera todas las piezas. `logo` = silueta normalizada (logos.leer_logo) o None."""
     d, avisos = validar(diseno)
     obtener_fuente(d.fuente)
-    letras = maquetar(d.texto, d.fuente, d.altura, d.espaciado, d.tolerancia, d.interlineado, d.alineacion)
+    con_logo = logo is not None and d.logo_altura > 0
+    if con_logo and not d.texto.strip():
+        letras = []
+    else:
+        letras = maquetar(d.texto, d.fuente, d.altura, d.espaciado, d.tolerancia, d.interlineado, d.alineacion)
+    if con_logo:
+        from shapely.ops import unary_union as _u
+
+        from .logos import colocar
+        from .texto import Letra
+        caja = _u([l.forma for l in letras]).bounds if letras else None
+        forma_logo = colocar(logo, caja, d)
+        palabra = max((l.palabra for l in letras), default=-1) + 1
+        letras = letras + [Letra(len(letras) + 1, "logo", forma_logo, forma_logo.bounds[0], palabra, 0)]
+    elif logo is None and d.logo_altura > 0:
+        avisos.append("Altura de logo indicada pero no hay logo cargado.")
     unidades, avisos_conjunto = agrupar(letras, d)
     avisos += avisos_conjunto
     if d.salida_cable != "cada_pieza" and d.estructura not in ("maciza", "caja_luz"):
@@ -149,6 +170,11 @@ def generar_letrero(diseno: Diseno) -> Proyecto:
     return Proyecto(d, resultados, avisos)
 
 
+def _seg_cama(c) -> float:
+    from .impresion import segundos_cama
+    return segundos_cama(c)
+
+
 ARCHIVOS_FIJOS = {"ficha.json", "LEEME.txt", "plantilla-montaje.svg", "contornos.dxf", "camas"}
 
 
@@ -157,6 +183,11 @@ def _datos_neon(letra, d: Diseno) -> ResultadoLetra:
     res = construir_letra(letra, replace(d, conjunto="individual", dividir=True, fijacion="ninguna"))
     res.piezas = []
     return res
+
+
+def _fmt_horas(h: float) -> str:
+    from .impresion import formato
+    return formato(h * 3600)
 
 
 def plan_electrico(proyecto: "Proyecto") -> dict:
@@ -209,6 +240,7 @@ def exportar(proyecto: Proyecto, carpeta: str | Path, comprimir: bool = False) -
             "consumo_w": round(proyecto.metros_led * d.w_por_metro, 1) if d.w_por_metro else None,
             "costes": proyecto.costes(),
             "electrico": plan_electrico(proyecto),
+            "impresion_h": round(proyecto.horas_impresion(), 2),
         },
         "montaje": [
             {"orden": r.letra.indice, "caracter": r.letra.caracter,
@@ -226,12 +258,12 @@ def exportar(proyecto: Proyecto, carpeta: str | Path, comprimir: bool = False) -
             {"archivo": p.archivo, "caracter": p.letra.caracter, "rol": p.rol,
              "medidas_mm": _medidas(p.malla), "volumen_cm3": round(p.volumen_cm3, 2),
              "peso_g": round(p.peso_g, 1), "triangulos": int(len(p.malla.faces)),
-             "parte": p.parte, "material": p.material, "impresion": instrucciones(d.estructura, p.rol)}
+             "parte": p.parte, "material": p.material, "color": p.color, "impresion": instrucciones(d.estructura, p.rol)}
             for p in proyecto.piezas
         ],
         "camas": [
-            {"archivo": f"camas/{c.archivo}", "numero": c.numero, "material": c.material,
-             "peso_g": round(c.peso_g, 1),
+            {"archivo": f"camas/{c.archivo}", "numero": c.numero, "material": c.material, "color": c.color,
+             "peso_g": round(c.peso_g, 1), "tiempo_min": round(_seg_cama(c) / 60),
              "piezas": [{"archivo": col.pieza.archivo, "x_mm": round(col.x, 1), "y_mm": round(col.y, 1),
                          "ancho_mm": round(col.ancho, 1), "alto_mm": round(col.alto, 1)} for col in c.colocaciones]}
             for c in proyecto.camas()
@@ -266,7 +298,13 @@ def _leeme(proyecto: Proyecto, ficha: dict) -> str:
     partes += ["", "CAMAS DE IMPRESIÓN (carpeta camas/: ábrelas en Bambu Studio, ya vienen colocadas)"]
     from .camas import NOMBRE_MATERIAL
     for c in ficha["camas"]:
-        partes.append(f"  {c['archivo']:<30} {len(c['piezas'])} pieza(s) · {c['peso_g']:.0f} g · {NOMBRE_MATERIAL[c['material']]}")
+        from .camas import nombre_color
+        col = f" · filamento {nombre_color(c['color'])} ({c['color']})" if c.get("color") else ""
+        partes.append(f"  {c['archivo']:<38} {len(c['piezas'])} pieza(s) · {c['peso_g']:.0f} g · ≈ {c['tiempo_min'] // 60} h {c['tiempo_min'] % 60:02d} min{col} · {NOMBRE_MATERIAL[c['material']]}")
+    partes.append("  Tiempos estimados (±30 %); Bambu Studio da el tiempo exacto al laminar.")
+    from .impresion import AJUSTES_A2L_PETG
+    partes += ["", "AJUSTES RECOMENDADOS EN BAMBU STUDIO (A2L + PETG)"]
+    partes += [f"  {k}: {v}" for k, v in AJUSTES_A2L_PETG]
     partes += ["", "CÓMO IMPRIMIR"]
     for rol in sorted({p.rol for p in proyecto.piezas}):
         partes.append(f"  {rol}: {instrucciones(d.estructura, rol)}")
@@ -332,6 +370,13 @@ def _leeme(proyecto: Proyecto, ficha: dict) -> str:
         partes.append("  Las tapas van desplazadas: cada una pisa la junta siguiente y traba las dos piezas.")
     partes += ["", "CONTORNOS: contornos.dxf (mm, 1:1, en posición de montaje). Capa LETRAS para cortar a láser "
                "el frente de metacrilato (estructura caja) o vinilo; CORTES y CABLE como referencia."]
+    if d.canto != "recto" or d.reborde > 0:
+        acab = []
+        if d.canto != "recto":
+            acab.append(f"canto {'en chaflán' if d.canto == 'chaflan' else 'redondeado'} de {d.canto_mm:g} mm (impreso por capas, sin soportes)")
+        if d.reborde > 0:
+            acab.append(f"frente con reborde de {d.reborde:g} mm sobre las paredes")
+        partes += ["", "ACABADO: " + "; ".join(acab) + "."]
     if d.estructura == "frontal":
         partes += ["", f"Frente a presión con holgura {d.holgura:g} mm: calibrar antes con `python -m letreros_motor probeta`."]
     if d.estructura == "halo":

@@ -42,6 +42,7 @@ class Pieza:
     huella: MultiPolygon  # contorno apoyado en la cama, para comprobar el tamaño
     parte: str = ""  # A, B, C… si la pieza se dividió; AB, BC… en los empalmes
     material: str = "opaco"  # opaco | difusor (cada cama de impresión lleva un solo filamento)
+    color: str = ""  # color del filamento (#RRGGBB)
     montaje: np.ndarray | None = None  # 4×4: pose de impresión → pose montada (None = igual)
 
     @property
@@ -316,6 +317,35 @@ def subir(dz: float) -> np.ndarray:
 
 # --------------------------------------------------------------------------- estructuras
 
+CAPA_CANTO = 0.2
+
+
+def cara(forma, z0: float, z1: float, d: Diseno, arriba: bool = False, av=None, c: str = "") -> m3d.Manifold:
+    """Prisma con el canto visible trabajado (chaflán o redondeo) en z0 (cara sobre la cama)
+    o en z1 (`arriba`). Se construye por capas de 0,2 mm, como lo imprimirá la máquina."""
+    t = min(d.canto_mm, (z1 - z0) - 0.4)
+    if d.canto == "recto" or t < CAPA_CANTO:
+        return prisma(forma, z0, z1)
+    n = max(1, round(t / CAPA_CANTO))
+    h = t / n
+    capas = []
+    for k in range(n):
+        zc = (k + 0.5) * h  # distancia de esta capa a la cara
+        if d.canto == "chaflan":
+            entra = t - zc
+        else:
+            entra = t - math.sqrt(max(t * t - (t - zc) ** 2, 0.0))
+        trozo = multipoligono(forma.buffer(-entra, **UNION)) if entra > 0.01 else forma
+        if trozo.is_empty:
+            if av is not None:
+                av.append(f"'{c}': trazos demasiado finos para un canto de {t:g} mm; esa zona queda recta.")
+            trozo = forma
+        a, b = (z0 + k * h, z0 + (k + 1) * h + 0.01) if not arriba else (z1 - (k + 1) * h - 0.01, z1 - k * h)
+        capas.append(prisma(trozo, a, b))
+    resto = prisma(forma, z0 + t, z1) if not arriba else prisma(forma, z0, z1 - t)
+    return unir([resto, *capas])
+
+
 def _faldon(huecos, d, av, c, z0):
     """Faldón que entra en el cuerpo (frente/trasera a presión)."""
     faldon = []
@@ -327,6 +357,13 @@ def _faldon(huecos, d, av, c, z0):
             continue
         faldon.append(prisma(anillo, z0 - 0.01, z0 + d.encaje))
     return faldon
+
+
+def _frente(forma: MultiPolygon, d: Diseno) -> MultiPolygon:
+    """Silueta del frente: la de la letra, o algo mayor si lleva reborde (moldura sobre las paredes)."""
+    if d.reborde <= 0:
+        return forma
+    return multipoligono(forma.buffer(d.reborde, **UNION))
 
 
 def ranura_neon(forma: MultiPolygon, d: Diseno) -> MultiPolygon:
@@ -373,7 +410,7 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
     plantilla_forma = forma
 
     if d.estructura == "maciza":
-        cuerpo = prisma(forma, 0, p)
+        cuerpo = cara(forma, 0, p, d, arriba=True, av=av, c=c)
         if d.fijacion != "ninguna":  # macizas: agujeros ciegos por detrás para espárrago/inserto
             pts = _puntos_fijacion([g for g in forma.geoms], INSERTO_D / 2 + 2.5)
             cuerpo -= unir([cilindro(x, y, INSERTO_D / 2, -1, min(INSERTO_PROF, p - 2)) for x, y, _ in pts])
@@ -396,7 +433,8 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
         cuerpo = unir([cuerpo, *suma])
         cuerpo -= unir([_agujero_cable(hc, d, d.fondo, av, c), _agujero_drenaje(huecos, d, d.fondo, av, c), *resta])
         solidos.append(("cuerpo", cuerpo))
-        solidos.append(("frente", unir([prisma(forma, 0, d.frente), *_faldon(huecos, d, av, c, d.frente)])))
+        solidos.append(("frente", unir([cara(_frente(forma, d), 0, d.frente, d, av=av, c=c),
+                                        *_faldon(huecos, d, av, c, d.frente)])))
         montajes["frente"] = voltear(p)
         if d.estructura == "lateral":
             materiales.update(cuerpo="difusor", frente="opaco")
@@ -410,7 +448,8 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
         alto = p - d.frente - d.fondo
         solidos.append(("cuerpo", prisma(forma, 0, alto) - prisma(hueco, -1, alto + 1)))
         montajes["cuerpo"] = subir(d.fondo)
-        solidos.append(("frente", unir([prisma(forma, 0, d.frente), *_faldon(huecos, d, av, c, d.frente)])))
+        solidos.append(("frente", unir([cara(_frente(forma, d), 0, d.frente, d, av=av, c=c),
+                                        *_faldon(huecos, d, av, c, d.frente)])))
         montajes["frente"] = voltear(p)
         materiales["frente"] = "difusor"
         trasera = unir([prisma(forma, 0, d.fondo), *_faldon(huecos, d, av, c, d.fondo)])
@@ -431,7 +470,7 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
             raise ErrorEntrada(f"'{c}': profundidad insuficiente para frente y trasera con faldón.")
 
     elif d.estructura == "halo":
-        cuerpo = prisma(forma, 0, p) - prisma(hueco, d.frente, p + 1)
+        cuerpo = cara(forma, 0, p, d, av=av, c=c) - prisma(hueco, d.frente, p + 1)
         macizos, agujeros, res.puntos_separadores = _separadores(huecos, d, av, c)
         cuerpo = unir([cuerpo, *macizos]) - unir(agujeros)
         solidos.append(("cuerpo", cuerpo))
@@ -442,7 +481,7 @@ def construir_letra(letra: Letra, d: Diseno, retoques: dict | None = None) -> Re
         ranura = ranura_neon(forma, d)
         g = profundidad_ranura_neon(d)
         base_forma = multipoligono(unary_union([forma, ranura]).buffer(d.neon_borde, join_style=1))
-        base = prisma(base_forma, 0, p) - prisma(ranura, p - g, p + 1)
+        base = cara(base_forma, 0, p, d, arriba=True, av=av, c=c) - prisma(ranura, p - g, p + 1)
         # Paso de cable por el punto más bajo del canal (donde empieza el neón).
         from shapely.geometry import Point
         clave = (lambda q: (-q[0] + 0.0 * q[1])) if getattr(letra, "salida", "") == "fin" else (lambda q: (q[1], q[0]))
@@ -512,6 +551,7 @@ def finalizar(res: ResultadoLetra, letra: Letra, d: Diseno, forma: MultiPolygon,
 
     for pieza in res.piezas[inicio:]:
         pieza.material = materiales.get(pieza.rol, pieza.material)
+        pieza.color = d.color_frente if pieza.rol in ("frente", "trasera", "difusor") else d.color_cuerpo
         if pieza.rol == "empalme":
             pieza.material = "opaco"
             pieza.montaje = _montaje_empalme(d)

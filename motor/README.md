@@ -63,6 +63,12 @@ Añade `--zip` para obtener además `salida\LUCY.zip`.
 | `--separacion` | 20 | 5–80 | Halo: distancia de la letra a la pared. |
 | `--tornillo` | 3,2 | 2–6 | Halo: Ø del agujero de cada separador. |
 
+### Logotipos (v0.9)
+Desde Python: `from letreros_motor.logos import leer_logo` → `logo, avisos = leer_logo(open("logo.svg").read(), "logo.svg")` y `generar_letrero(Diseno("BAR", logo_altura=90, logo_posicion="izquierda"), logo)`.
+- SVG: formas con relleno (agujeros por par-impar dentro de cada forma, transformaciones aplicadas). Los trazos sin relleno se ignoran con aviso.
+- DXF: polilíneas, círculos, arcos, elipses, splines y líneas; se rellenan las regiones cerradas por niveles.
+- Límites: 600 kB, sin DOCTYPE/ENTITY, 250 000 puntos.
+
 ### Letras unidas por piezas (v0.8)
 `python -m letreros_motor letrero "aperto" --fuente pacifico --conjunto unidas --letras-por-pieza 2 --salida-cable fin -o salida\aperto`
 - `--letras-por-pieza N`: corta la palabra unida en piezas de N letras por el punto más estrecho entre grupos (piezas «ap», «er», «to»). Cada pieza debe caber en la cama; si no, el error lo dice.
